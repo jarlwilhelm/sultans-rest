@@ -332,7 +332,9 @@ function statue(scene) {
   for (const [sx, sz] of [[-3.2, -3.2], [3.2, -3.2], [-3.2, 3.2], [3.2, 3.2]]) {
     B.cyl.add(x + sx, y, z + sz, 0.35, 1.1, 0.35, '#d8c8a8');
     B.cyl.add(x + sx, y + 1.1, z + sz, 0.55, 0.3, 0.55, GOLD);
-    addFire(scene, x + sx, y + 1.38, z + sz, { size: 1.15, strength: 1.1 });
+    // Its light sits 2 m further out from the statue, so it lights the square, not the plinth beside it.
+    const out = 2 / Math.hypot(sx, sz);
+    addFire(scene, x + sx, y + 1.38, z + sz, { size: 1.15, strength: 1.1, light: { x: x + sx * (1 + out), y: y + 2.2, z: z + sz * (1 + out) } });
   }
   placeReadable(scene, signBoard('KING SHOU', 'Blood of transmutation · Light of the Sultanate', { bg: '#e8dcc2', fg: '#6a4a14' }), {
     x, y: y + 2.3, z: z - 2.03, w: 3.6, h: 0.9, title: 'Statue of King Shou',

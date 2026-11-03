@@ -22,7 +22,9 @@ const LAYERS = [['#ff7a2a', 1.0, 0.9], ['#ffc14a', 0.7, 1.0], ['#fff2c8', 0.38, 
 const sparkMat = new THREE.PointsMaterial({ color: '#ffb257', size: 0.07, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
 
 // A fire at (x, y, z) (the base of the flame). size ~ metres tall. night: only lit after dark (lanterns).
-export function addFire(scene, x, y, z, { size = 1, sparks = true, strength = 1, night = false } = {}) {
+// light: where its real light sits, if not on the flame (e.g. pushed outward so a fire beside a wall
+// lights the street instead of glaring on the wall right next to it).
+export function addFire(scene, x, y, z, { size = 1, sparks = true, strength = 1, night = false, light = null } = {}) {
   const sprites = LAYERS.map(([color, s, o]) => {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false }));
     m.center.set(0.5, 0.08);                       // grow up from the base
@@ -40,7 +42,7 @@ export function addFire(scene, x, y, z, { size = 1, sparks = true, strength = 1,
     pts.frustumCulled = false;
     scene.add(pts);
   }
-  const f = { x, y, z, size, sprites, sparks: pts, strength, phase: Math.random() * 10, night };
+  const f = { x, y, z, size, sprites, sparks: pts, strength, phase: Math.random() * 10, night, light };
   fires.push(f);
   return f;
 }
@@ -105,7 +107,7 @@ export function fireLights(scene, count = 4) {
     lights.forEach((l, i) => {
       const f = chosen[i];
       if (!f) { l.intensity = 0; return; }
-      l.position.set(f.x, f.y + f.size * 0.5, f.z);
+      if (f.light) l.position.set(f.light.x, f.light.y, f.light.z); else l.position.set(f.x, f.y + f.size * 0.5, f.z);
       const flick = 0.85 + Math.sin(t * 11 + f.phase) * 0.08 + Math.sin(t * 29 + f.phase * 3) * 0.07;
       l.intensity = f.strength * (10 + 140 * night) * flick;      // (real-world units: an outdoor lamp needs a lot)
       l.distance = 14 + 10 * f.strength;
