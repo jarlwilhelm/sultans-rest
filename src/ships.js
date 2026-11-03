@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { makeRng, pick, range } from './noise.js';
 import { PIERS, QUAY_Y } from './land.js';
 import { glowTextureCanvas } from './signs.js';
+import { prop } from './interiors.js';
 
 export const ORIGINS = [
   { land: 'the Coastal Republic of Meridia', hull: '#6b4a2e', sail: '#f2ede0', flag: '#2b5fa8' },
@@ -155,6 +156,7 @@ export function makeShip(o, len) {
     const w = new THREE.Mesh(new THREE.BoxGeometry(beam * 0.12, height * 0.16, 0.06), winMat);
     w.position.set(wx * beam, top + height * 0.3, len * 0.44 + 0.03);
     g.add(w);
+    (g.userData.simple ??= []).push(w);
   }
   const lantern = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffc46b', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   lantern.scale.set(1.6, 1.6, 1); lantern.position.set(0, top + height * 0.7, len * 0.46);
@@ -164,6 +166,10 @@ export function makeShip(o, len) {
   sprit.rotation.x = -Math.PI / 2 + 0.35;
   sprit.position.set(0, top + height * 0.25, -len * 0.55);
   g.add(hull, deck, bulwark, castle, sprit);
+  // These simple parts stand in until the Blender hull has loaded (fitHull swaps them out).
+  (g.userData.simple ??= []).push(hull, deck, bulwark, castle);
+  g.userData.mats = { hullMat, trimMat, deckMat };
+  g.userData.len = len;
   const spritTip = new THREE.Vector3(0, top + height * 0.25 + Math.sin(0.35) * len * 0.15, -len * 0.55 - Math.cos(0.35) * len * 0.15);
   g.userData.parts = [];
 
@@ -249,7 +255,36 @@ export function makeShip(o, len) {
   if (rig.length) g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(rig), new THREE.LineBasicMaterial({ color: '#2a1f16' })));
   g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
   g.userData.label = `A ship from ${o.land}`;
+  g.userData.o = o;
+  if (!fitHull(g)) waiting.push(g);
   return g;
+}
+
+// The hull from Blender (tools/blender/ship.py), built for a 20 m ship: scaled to this one and painted in
+// its land's colours. Its planks are mapped on the hull itself (shipWood), so they move with the ship.
+const waiting = [];
+function fitHull(g) {
+  const ud = g.userData;
+  const model = prop(g, 'ship_hull', 0, 0, 0);
+  if (!model) return false;
+  model.scale.setScalar(ud.len / 20);
+  const m20 = { hullMat: shipWood(ud.o.hull, { band: { water: -0.53, y0: 0.97, y1: 1.32, color: ud.o.flag } }),
+    trimMat: shipWood(ud.o.hull, { roughness: 0.5 }), deckMat: shipWood('#c9a77a', { roughness: 0.85, tile: 1.6 }) };
+  m20.hullMat.side = THREE.DoubleSide;
+  model.traverse(m => {
+    if (!m.isMesh) return;
+    const n = m.material.name;
+    if (n === 'Hull') m.material = m20.hullMat;
+    else if (n === 'Wood') m.material = m20.deckMat;
+    else if (n === 'DarkWood') m.material = m20.trimMat;
+    else if (n === 'NightWindow' && sceneRef?.userData.windowMat) m.material = sceneRef.userData.windowMat;
+  });
+  for (const part of ud.simple) part.visible = false;
+  return true;
+}
+// Ships made before the models loaded get their hulls now (main.js calls this after loadProps).
+export function fitWaitingHulls() {
+  while (waiting.length && fitHull(waiting[0])) waiting.shift();
 }
 
 export function buildShips(scene, lookables) {

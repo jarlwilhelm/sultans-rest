@@ -7,7 +7,7 @@ import { surface } from './look.js';
 import { signBoard, canvasTexture, readables } from './signs.js';
 import { makeShip } from './ships.js';
 import { state, level } from './game/state.js';
-import { prop, hollow, setShellActive } from './interiors.js';
+import { prop, hollow, setShellActive, lamp } from './interiors.js';
 import { trade, toast } from './game/ui.js';
 import { questState } from './game/quests.js';
 
@@ -51,13 +51,16 @@ export function buildProperty(scene) {
   // 1: the Shack Stand: a wooden booth with a counter and an awning.
   const shack = new THREE.Group();
   const sz = front + 2.5;
-  box(shack, wood, x - 1.75, y, sz, 0.15, 2.6, 2.5);
-  box(shack, wood, x + 1.75, y, sz, 0.15, 2.6, 2.5);
-  box(shack, wood, x - 0.6, y, sz - 1.1, 2.4, 1.0, 0.5);        // counter (a gap on the right to get behind it)
+  // (plain boxes until the Blender stall has loaded; show() swaps them out)
+  const plainStall = [
+    box(shack, wood, x - 1.75, y, sz, 0.15, 2.6, 2.5),
+    box(shack, wood, x + 1.75, y, sz, 0.15, 2.6, 2.5),
+    box(shack, wood, x - 0.6, y, sz - 1.1, 2.4, 1.0, 0.5),        // counter (a gap on the right to get behind it)
+  ];
   // Ale's little hut behind the counter, with a door: step round the counter and go in.
   const hut = hollow(shack, { x, z: sz + 1.25 + 1.6, w: 3.6, d: 3.2, h: 2.5, color: '#c9a77a', doorW: 1.0, doorH: 2.05, name: "Ale's shack", doorColor: '#2e5fa8' });
   const awn = box(shack, cloth('#b8382b'), x, y + 2.6, sz - 0.6, 4.2, 0.05, 2.8); awn.rotation.x = 0.18;
-  box(shack, wood, x + 2.5, y, sz + 0.5, 0.8, 0.8, 0.8, 0.3);
+  plainStall.push(awn, box(shack, wood, x + 2.5, y, sz + 0.5, 0.8, 0.8, 0.8, 0.3));
   levels.push(shack);
 
   // 2: a Small Store: one room, a door, a window, an awning.
@@ -115,7 +118,7 @@ export function buildProperty(scene) {
   const collider = { x0: 0, x1: 0, z0: 0, z1: 0 };
   colliders.push(collider);
   const shackCols = [0, 1, 2].map(() => { const c = { x0: 0, x1: 0, z0: 0, z1: 0 }; colliders.push(c); return c; });
-  let hutFurnished = false;
+  let hutFurnished = false, stallBuilt = false;
   // Inside your store: a counter where you sell, shelves showing what you sell.
   const inside = { 2: new THREE.Group(), 3: new THREE.Group() };
   store.add(inside[2]); big.add(inside[3]);
@@ -141,6 +144,16 @@ export function buildProperty(scene) {
       }
     }
     for (let i = 0; i < 3; i++) prop(g, 'Crate', sh.x - 1 + i, sh.fy, sh.z1 - 0.5, { h: 0.6, ry: i });
+    // Everything around the counter and shelves, from Blender (tools/blender/property.py).
+    if (prop(g, k === 2 ? 'store_small_room' : 'store_big_room', sh.x, sh.fy, sh.z)) {
+      lamp(g, sh.x, k === 2 ? sh.fy + 2.75 : sh.fy + 5.15, k === 2 ? sh.z - 0.3 : sh.z - 0.5, '#ffc46b', k === 2 ? 0.55 : 1.6);
+      if (!furnished['decor' + k]) {
+        furnished['decor' + k] = true;
+        const block = (x0, x1, z0, z1) => colliders.push({ x0: sh.x + x0, x1: sh.x + x1, z0: sh.z + z0, z1: sh.z + z1 });
+        if (k === 2) { block(-1.95, -1.25, -3.05, -2.35); block(1.05, 1.75, -3.05, -2.35); }
+        else { block(-2.75, -1.05, -1.15, -0.05); block(1.05, 2.75, -1.15, -0.05); block(-4.95, -4.2, -4.95, -4.2); block(4.2, 4.95, -4.95, -4.2); }
+      }
+    }
     prop(g, 'Lettuce_Harvested', sh.x - 1, sh.fy + 0.6, sh.z1 - 0.5, { h: 0.3 });
     const lampM = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffd38a' }));
     lampM.position.set(sh.x, sh.top - 0.5, sh.z); g.add(lampM);
@@ -171,8 +184,17 @@ export function buildProperty(scene) {
       set(shackCols[0], x - 1.85, x + 0.65, sz - 1.4, sz - 0.8);      // counter
       set(shackCols[1], x - 1.9, x - 1.6, sz - 1.3, sz + 1.3);        // side walls
       set(shackCols[2], x + 1.6, x + 1.9, sz - 1.3, sz + 1.3);
+      if (!stallBuilt && prop(shack, 'stall', x, y, sz)) {
+        // The market stall from Blender (tools/blender/property.py) replaces the plain boxes.
+        stallBuilt = true;
+        for (const m of plainStall) m.visible = false;
+        colliders.push({ x0: x + 2.1, x1: x + 2.9, z0: sz - 0.95, z1: sz + 0.5 });
+        lamp(shack, x - 1.2, y + 2.25, sz, '#ffd38a', 0.9);
+      }
       if (!hutFurnished && prop(shack, 'Crate', hut.x0 + 0.45, hut.fy, hut.z1 - 0.45, { h: 0.6 })) {
         hutFurnished = true;
+        prop(shack, 'hut_room', hut.x, hut.fy, hut.z);
+        lamp(shack, hut.x, hut.fy + 1.95, hut.z, '#ffd38a', 0.8);
         prop(shack, 'Lettuce_Harvested', hut.x0 + 0.45, hut.fy + 0.6, hut.z1 - 0.45, { h: 0.3 });
         prop(shack, 'Crate', hut.x0 + 1.15, hut.fy, hut.z1 - 0.45, { h: 0.6, ry: 0.4 });
         prop(shack, 'Lettuce_Harvested', hut.x0 + 1.15, hut.fy + 0.6, hut.z1 - 0.45, { h: 0.3, ry: 1 });
@@ -212,8 +234,10 @@ export function buildProperty(scene) {
       const kinds = [['cab', 'cab', 'cab', 'cab'], ['cab', 'bag', 'cab', 'dates'], ['spice', 'bag', 'cab', 'spice'], ['glass', 'silk', 'spice', 'glass'], ['pearls', 'silk', 'wine', 'glass']][tr];
       const MODEL = { cab: ['Lettuce_Harvested', 0.3], bag: ['Bags', 0.4], dates: ['BushBerries_Harvested', 0.22], spice: ['Pot_Small', 0.24],
         glass: ['Potion2_Empty', 0.3], silk: ['Chest_Closed', 0.3], wine: ['Potion1_Filled', 0.3], pearls: ['Chest_Ingots', 0.3] };
-      kinds.forEach((k, i) => {
-        const ix = gx - 0.9 + i * 0.6;
+      // At the Blender stall the counter already shows cabbages: only other goods go out, on its free right end.
+      const show = lvl === 1 && stallBuilt ? [...new Set(kinds.filter(k => k !== 'cab'))].slice(0, 2) : kinds;
+      show.forEach((k, i) => {
+        const ix = lvl === 1 && stallBuilt ? x + 0.3 + i * 0.32 : gx - 0.9 + i * 0.6;
         const [name, h] = MODEL[k];
         if (!prop(goods, name, ix, top, gz, { h, ry: i * 1.3 })) {
           const b = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), cloth('#7aa04a')); b.position.set(ix, top + 0.15, gz); goods.add(b);

@@ -23,6 +23,7 @@ import { placeGoods } from './goods.js';
 import { compass, openMap } from './nav.js';
 import { loadProps, windowLight } from './interiors.js';
 import { scatterGround } from './land.js';
+import { fitWaitingHulls } from './ships.js';
 import { groundTime } from './look.js';
 import { sortScene, showPlace, roomAt, currentRoom, doorNear, useDoor, doorMoving, visibleDeep } from './rooms.js';
 import { intro } from './game/story.js';
@@ -68,7 +69,7 @@ async function main() {
   const updateProperty = buildProperty(scene);
   scatterGround(scene);            // rocks and grass tufts, after the buildings so they stay out of them
   try { await loadCharacters(); } catch (e) { console.warn('Characters did not load; using simple figures.', e); }
-  try { await loadProps(); furnish(scene); placeGoods(scene); } catch (e) { console.warn('Furniture did not load.', e); }
+  try { await loadProps(); furnish(scene); placeGoods(scene); fitWaitingHulls(); } catch (e) { console.warn('Furniture did not load.', e); }
   dispatchEvent(new CustomEvent('lavine:property'));
   const updatePeople = buildPeople(scene, lookables);
   makeStatue(scene, scene.userData.statueBase);

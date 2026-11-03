@@ -286,14 +286,14 @@ function guildHall(scene, gd, seed) {
 
 // ---------- Market ----------
 function market(scene) {
+  scene.userData.marketStalls = [];
   for (const row of [11, 19, 27]) {
     for (let x = -32; x <= 32; x += 8) {
       if (Math.abs(x) < 6) continue;
       const y = groundHeight(x, row);
       const color = pick(rng, AWNINGS);
-      for (const [sx, sz] of [[-2.2, -1.4], [2.2, -1.4], [-2.2, 1.4], [2.2, 1.4]]) B.cyl.add(x + sx, y, row + sz, 0.08, sz < 0 ? 2.6 : 3.0, 0.08, '#6b4a2c');
-      B.cloth.add(x, y + 2.8, row, 5, 0.06, 3.4, color, 0, -0.12);
-      B.wood.add(x, y, row - 0.9, 4, 0.95, 1.2, '#b08a62');
+      // The stall itself is a Blender model (tools/blender/market.py), drawn for every stall at once in goods.js.
+      scene.userData.marketStalls.push({ x, y, z: row, ry: 0, color });
       // (The goods on the table are real models, placed once they've loaded: goods.js.)
       addCollider(x - 2.2, x + 2.2, row - 1.6, row - 0.2);
       const kinds = ['spice', 'cloth', 'craft', 'food', 'curio'];
@@ -455,11 +455,8 @@ function palace(scene) {
 
   // Courtyard: a fountain where the paths meet, palms and beds along them.
   const fx = cx, fz = gz;
-  B.cyl.add(fx, py, fz, 5, 0.8, 5, '#e8dcc2');
-  B.cyl.add(fx, py + 0.8, fz, 4.6, 0.05, 4.6, '#3aa7b8');
-  B.cyl.add(fx, py, fz, 0.7, 3.2, 0.7, '#e8dcc2');
-  B.cyl.add(fx, py + 3.2, fz, 2, 0.4, 2, GOLD);
-  B.cone.add(fx, py + 3.6, fz, 0.5, 1.6, 0.5, GOLD);
+  // (The fountain itself is a Blender model: buildings.js puts it here.)
+  scene.userData.fountain = { x: fx, y: py, z: fz };
   addCollider(fx - 5, fx + 5, fz - 5, fz + 5);
   const spray = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(glowTextureCanvas()), color: '#cfefff', transparent: true, opacity: 0.6, depthWrite: false }));
   spray.position.set(fx, py + 4.6, fz); spray.scale.set(2.2, 2.8, 1);
@@ -571,10 +568,7 @@ function palace(scene) {
   scene.add(floor);
   for (let z = hzB + 4; z <= hzF - 3; z += 5.5) {
     for (const s of [-1, 1]) {
-      const x = cx + s * 9;
-      B.cyl.add(x, py, z, 0.75, HH, 0.75, '#eadcc2');
-      B.cyl.add(x, py, z, 1.05, 0.7, 1.05, GOLD);
-      B.cyl.add(x, py + HH - 0.9, z, 1.05, 0.9, 1.05, GOLD);
+      const x = cx + s * 9;          // (the fluted columns themselves are in the Blender hall model)
       addCollider(x - 0.8, x + 0.8, z - 0.8, z + 0.8);
     }
   }
@@ -586,20 +580,14 @@ function palace(scene) {
   B.box.add(cx, py + 0.62, dz1 - 0.3, 18, 0.03, 0.6, GOLD);
   addFloor(cx - 9, cx + 9, dz0, dz1, py + 0.6);
   addFloor(cx - 5.5, cx + 5.5, dz0, dz1 - 3, py + 1.2);
-  const ty = py + 1.2, tz = dz0 + 1.6;
-  B.box.add(cx, ty, tz, 2.6, 1.0, 2.0, GOLD);                // seat
-  B.box.add(cx, ty, tz - 0.9, 2.8, 4.6, 0.4, GOLD);          // tall back
-  B.onion.add(cx, ty + 4.6, tz - 0.9, 0.9, 1, 0.9, GOLD);
-  B.ball.add(cx, ty + 6.3, tz - 0.9, 0.25, 0.25, 0.25, '#7fe0ff');
-  for (const s of [-1, 1]) B.box.add(cx + s * 1.4, ty, tz, 0.3, 1.7, 2.0, GOLD);
-  B.box.add(cx, ty + 1.0, tz, 2.3, 0.25, 1.8, '#8e1f24');    // cushion
+  // The throne, its canopy, the braziers, lanterns and the scribe's desk are one Blender model
+  // (tools/blender/palace.py), placed by buildings.js at the hall's centre.
+  const tz = dz0 + 1.6;
   addCollider(cx - 1.6, cx + 1.6, tz - 1.2, tz + 1.1);
   placeReadable(scene, signBoard('THE THRONE OF KING SHOU', 'Sultan\'s Rest is entrusted to his Steward, Xi', { bg: '#2a1a0e' }), {
     x: cx, y: py + 0.32, z: dz1 + 0.01, w: 3.2, h: 0.5, title: 'Throne of King Shou', ry: Math.PI,
   });
-  // A scribe's desk to one side.
-  B.box.add(cx + 6.5, py, dz1 + 2.5, 2.4, 0.95, 1.2, '#6b4a2c');
-  B.box.add(cx + 6.5, py + 0.95, dz1 + 2.5, 0.8, 0.02, 0.6, '#efe2c4');
+  // A scribe's desk to one side (in the Blender model).
   addCollider(cx + 5.3, cx + 7.7, dz1 + 1.9, dz1 + 3.1);
   // Banners on the side walls and hanging lanterns.
   const flag = banner('#1f6f74', 'crown', 77);
@@ -609,8 +597,6 @@ function palace(scene) {
   }
   const glow = new THREE.CanvasTexture(glowTextureCanvas());
   for (const [lx, lz] of [[cx - 9, hz - 6], [cx + 9, hz - 6], [cx - 9, hz + 6], [cx + 9, hz + 6], [cx, hz + 9], [cx, hzB + 9]]) {
-    B.cyl.add(lx, py + 9.5, lz, 0.03, HH - 9.5, 0.03, '#3a2a1a');
-    B.cyl.add(lx, py + 8.8, lz, 0.35, 0.7, 0.35, GOLD);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd38a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
     s.position.set(lx, py + 9.1, lz); s.scale.set(2.4, 2.4, 1);
     scene.add(s);
@@ -636,7 +622,8 @@ function palace(scene) {
     { x: x0 - 2, z: gz - 3.6, ry: Math.PI / 2, role: 'guard', race: 'human' },
     { x: x0 - 2, z: gz + 3.6, ry: Math.PI / 2, role: 'guard', race: 'human' },
   );
-  scene.userData.hall = { x0: hx0, x1: hx1, z0: hzB, z1: hzF };
+  scene.userData.hall = { x0: hx0, x1: hx1, z0: hzB, z1: hzF, cx, hz, y: py };
+  for (const s of [-1, 1]) addCollider(cx + s * 10.8 - 0.65, cx + s * 10.8 + 0.65, hz - 7.65, hz - 6.35);   // the braziers
 }
 
 // ---------- City walls ----------

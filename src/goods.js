@@ -1,7 +1,7 @@
 // Real wares on the market tables and real cargo on the quay (Quaternius models, CC0),
 // placed once the models have loaded. No plain shapes: everything is a model.
 import { groundHeight, QUAY_Y } from './land.js';
-import { prop } from './interiors.js';
+import { prop, instanced } from './interiors.js';
 import { makeRng, pick, range } from './noise.js';
 
 // What lies on the table for each kind of stall: [model, height in metres].
@@ -15,6 +15,7 @@ const WARES = {
 const CLOTHS = ['#7a4ab0', '#b8382b', '#2e6c8e', '#d7a33a', '#2f9c9a', '#8e3b6c', '#e9e2cf'];   // tints for folded fabric
 
 export function placeGoods(scene) {
+  instanced(scene, 'market_stall', scene.userData.marketStalls);
   const rng = makeRng(808);
   for (const st of scene.userData.stalls || []) {
     const tz = st.z - 1.3, y = groundHeight(st.x, tz) + 0.95;

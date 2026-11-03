@@ -16,7 +16,8 @@ const PROPS = ['Lettuce_4', 'Lettuce_Harvested', 'Barrel', 'Crate', 'Bags', 'Ben
   'Chest_Ingots', 'Chalice', 'Necklace1', 'Book1_Closed', 'Scroll', 'Pouch', 'Coin', 'Crystal1', 'Gold_Ingots', 'Pot', 'Pot_Small', 'Pan', 'WoodLog', 'Plate_1', 'Carpet_1', 'Carpet_2', 'Carpet_Round', 'Sword', 'Dagger', 'Crown2', 'Key1', 'Torch', 'Skull'];
 // Lavine's own models, built in Blender (tools/blender/*.py) at real size with materials named by what
 // they are; prop() dresses them in the city's own textured materials (see dress()).
-const LAVINE = ['tavern_room', 'tavern_tabletop', 'ale_room', 'guild_merchants', 'guild_transmuters', 'guild_adventurers'];
+const LAVINE = ['tavern_room', 'tavern_tabletop', 'ale_room', 'guild_merchants', 'guild_transmuters', 'guild_adventurers',
+  'stall', 'hut_room', 'store_small_room', 'store_big_room', 'ship_hull', 'market_stall', 'palace_hall', 'palace_fountain'];
 const propDir = (n) => LAVINE.includes(n) ? 'assets/lavine' : 'assets/quaternius/props';
 const props = {};
 export async function loadProps() {
@@ -44,6 +45,9 @@ export const DRESS = (() => {
     GlassGreen: glass('#2f7a3a'), GlassBrown: glass('#7a3c12'), GlassClear: glass('#dfe8e0'), GlassBlue: glass('#2c5aa0'),
     Wax: new THREE.MeshStandardMaterial({ color: '#efe2c0', roughness: 0.7 }),
     Fire: glow(2.2, 1.3, 0.45), Ember: glow(1.8, 0.45, 0.12), Potion: glow(0.5, 1.6, 0.6),
+    Marble: new THREE.MeshStandardMaterial({ color: '#eee6d8', roughness: 0.3, metalness: 0.02 }),
+    Water: new THREE.MeshPhysicalMaterial({ color: '#4aa6b4', roughness: 0.05, transparent: true, opacity: 0.7, clearcoat: 1 }),
+    Awning: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, side: THREE.DoubleSide }),   // tinted per copy
     Window: glow(1.2, 1.18, 1.05),        // daylight through the glass; main.js dims it at night (windowLight)
   };
 })();
@@ -75,6 +79,29 @@ export function prop(scene, name, x, y, z, { h, len, ry = 0, tint } = {}) {
   });
   scene.add(wrap);
   return wrap;
+}
+
+// Many copies of one model drawn together (one draw per material for all of them), e.g. the market's stalls.
+// list: [{ x, y, z, ry, color }]; color tints the 'Awning' parts of that copy.
+export function instanced(scene, name, list) {
+  const p = props[name];
+  if (!p || !list?.length) return false;
+  p.scene.updateMatrixWorld(true);
+  const place = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
+  p.scene.traverse(m => {
+    if (!m.isMesh) return;
+    const im = new THREE.InstancedMesh(m.geometry, m.material, list.length);
+    list.forEach((s, i) => {
+      place.compose(new THREE.Vector3(s.x, s.y, s.z), q.setFromAxisAngle(up, s.ry || 0), one).multiply(m.matrixWorld);
+      im.setMatrixAt(i, place);
+      if (m.material === DRESS.Awning) im.setColorAt(i, new THREE.Color(s.color || '#ffffff'));
+    });
+    im.castShadow = m.material !== DRESS.Fire;
+    im.receiveShadow = true;
+    im.computeBoundingSphere();
+    scene.add(im);
+  });
+  return true;
 }
 
 // ---------- Shells ----------

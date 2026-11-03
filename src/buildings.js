@@ -165,6 +165,12 @@ export function furnish(scene) {
       : page('A loose stone', ['It wobbles when you touch it. Something about it bothers you, but it won\'t come up yet.'], { h: 260 }),
     id: 'stone' });
 
+  // The palace's finer pieces from Blender: throne and canopy, fluted columns, braziers, lanterns, desk; the fountain.
+  const hall = scene.userData.hall, fountain = scene.userData.fountain;
+  if (hall) prop(scene, 'palace_hall', hall.cx, hall.y, hall.hz);
+  if (fountain) prop(scene, 'palace_fountain', fountain.x, fountain.y, fountain.z);
+  if (hall) for (const s of [-1, 1]) lamp(scene, hall.cx + s * 10.8, hall.y + 2.0, hall.hz - 7, '#ff9a3a', 3.0);
+
   // People with names in the story (quests.js).
   for (const [id, n] of Object.entries(NAMED)) posts.push({ x: n.x, z: n.z, ry: n.ry, role: n.role, race: n.race, label: n.title, npc: { kind: 'named', id } });
 
