@@ -33,8 +33,8 @@ export function daylight(scene, sky) {
     sky.material.uniforms.dusk.value = dusk;
     sun.color.copy(daySun).lerp(lowSun, dusk);
     if (night > 0.98) sun.color.copy(moon);
-    sun.intensity = day > 0.02 ? 2.6 * smooth(0, 0.18, elev) + 0.2 : 0.35;
-    hemi.intensity = 0.15 + 0.6 * day;
+    sun.intensity = day > 0.02 ? 2.6 * smooth(0, 0.18, elev) + 0.2 : 0.5;     // moonlight
+    hemi.intensity = 0.26 + 0.49 * day;                                     // (a little brighter at night, so streets read)
     hemi.color.copy(nightHemiSky).lerp(dayHemiSky, day);
     scene.environmentIntensity = 0.04 + 0.26 * day;
     scene.fog.color.copy(dayFog).lerp(duskFog, dusk).lerp(nightFog, night);

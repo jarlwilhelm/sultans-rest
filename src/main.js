@@ -24,6 +24,7 @@ import { placeGoods } from './goods.js';
 import { compass, openMap } from './nav.js';
 import { loadProps, windowLight } from './interiors.js';
 import { scatterGround } from './land.js';
+import { fireLights } from './fire.js';
 import { fitWaitingHulls } from './ships.js';
 import { sneakWatch } from './game/sneak.js';
 import { palaceGate } from './game/quests.js';
@@ -108,6 +109,7 @@ async function main() {
   const stranger = strangerWatch(scene, lookables);
   const sneak = sneakWatch(scene);                 // following, overhearing, the watcher (game/sneak.js)
   sortScene(scene);                  // the city in one group, each room's things in its own (rooms.js)
+  const fireUpdate = fireLights(scene, 4);   // flames, sparks, and real light on the nearest fires and lanterns (fire.js)
   const roomLight = new THREE.PointLight('#ffcf8a', 0, 20, 2);
   scene.add(roomLight);
 
@@ -404,6 +406,10 @@ async function main() {
     followSun(camera.position);
     updateWater(wt, camera.position);
     groundTime.value = wt;
+    {
+      const h = state.minute / 60, dayK = Math.min(1, Math.max(0, (h - 5.5) / 2)) * (1 - Math.min(1, Math.max(0, (h - 18.5) / 2)));
+      fireUpdate(dt, wdt, wt, camera.position, 1 - dayK);
+    }
     updatePassage(wt);
     updateKraken(wt);
     updateShips(wt, wdt);

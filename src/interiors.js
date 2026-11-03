@@ -18,7 +18,7 @@ const PROPS = ['Lettuce_4', 'Lettuce_Harvested', 'Barrel', 'Crate', 'Bags', 'Ben
 // they are; prop() dresses them in the city's own textured materials (see dress()).
 const LAVINE = ['tavern_room', 'tavern_tabletop', 'ale_room', 'guild_merchants', 'guild_transmuters', 'guild_adventurers', 'guild_mariners',
   'stall', 'hut_room', 'store_small_room', 'store_big_room', 'ship_hull', 'market_stall', 'palace_hall', 'palace_fountain',
-  'palm', 'bush_green', 'bush_flower', 'shrub_dry'];
+  'palm', 'bush_green', 'bush_flower', 'shrub_dry', 'street_lamp'];
 const propDir = (n) => LAVINE.includes(n) ? 'assets/lavine' : 'assets/quaternius/props';
 const props = {};
 export async function loadProps() {
@@ -73,6 +73,7 @@ export const DRESS = (() => {
     Marble: new THREE.MeshStandardMaterial({ color: '#eee6d8', roughness: 0.3, metalness: 0.02 }),
     Water: new THREE.MeshPhysicalMaterial({ color: '#4aa6b4', roughness: 0.05, transparent: true, opacity: 0.7, clearcoat: 1 }),
     Awning: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, side: THREE.DoubleSide }),   // tinted per copy
+    LampGlass: new THREE.MeshStandardMaterial({ color: '#e8d6a8', roughness: 0.2, emissive: '#ffb45a', emissiveIntensity: 0 }),   // lit at night (windowLight)
     Window: glow(1.2, 1.18, 1.05),        // daylight through the glass; main.js dims it at night (windowLight)
   };
 })();
@@ -232,6 +233,7 @@ export function windowLight(minute) {
   const day = s(5.5, 7.5, h) * (1 - s(18.5, 20.5, h));
   const dusk = Math.max(0, 1 - Math.abs(h - 19.2) / 1.2) + Math.max(0, 1 - Math.abs(h - 6.3) / 1.0);
   DRESS.Window.color.copy(NIGHT).lerp(DAY, day).lerp(DUSK, Math.min(0.5, dusk * 0.5));
+  DRESS.LampGlass.emissiveIntensity = (1 - day) * 1.8;
 }
 
 // Switch a shell's walls solid or not (for buildings that are only sometimes there, like your plot's).

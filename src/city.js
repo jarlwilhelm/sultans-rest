@@ -5,10 +5,12 @@ import * as THREE from 'three';
 import { Batch, SHAPES } from './batch.js';
 import { surface } from './look.js';
 import { makeRng, pick, range } from './noise.js';
-import { groundHeight, wealth, addCollider, addFloor, PALACE, PALACE_GATE, CITY_WALL, QUAY_Y, QUAY_DEPTH } from './land.js';
+import { groundHeight, wealth, addCollider, addFloor, PALACE, PALACE_GATE, CITY_WALL, QUAY_Y, QUAY_DEPTH, PIERS, colliders } from './land.js';
+const blockedAt = (x, z) => colliders.some(c => x > c.x0 - 0.6 && x < c.x1 + 0.6 && z > c.z0 - 0.6 && z < c.z1 + 0.6);
 import { signBoard, banner, placeReadable, glowTextureCanvas, canvasTexture } from './signs.js';
 import { noticeBoard, wallPoster } from './posters.js';
 import { hollow } from './interiors.js';
+import { addFire } from './fire.js';
 
 const rng = makeRng(1234);
 
@@ -303,6 +305,22 @@ function market(scene) {
 
 // ---------- King Shou and the shrine ----------
 // The people worship their sovereign; a statue with a Luminous Shrine felt right for the plaza.
+// Street lanterns (a Blender model drawn all at once by goods.js; their flames are fire.js lanterns):
+// both sides of the main avenue, along the quay by the water, and by a few doors people need at night.
+function streetLamps(scene) {
+  const list = scene.userData.streetLamps = [];
+  const put = (x, z, ry) => {
+    if (!walkableAt(x, z)) return;
+    list.push({ x, y: groundHeight(x, z), z, ry });
+    addCollider(x - 0.25, x + 0.25, z - 0.25, z + 0.25);
+  };
+  for (let z = 40; z <= 280; z += 18) { put(6.4, z, Math.PI / 2); put(-6.4, z + 9, -Math.PI / 2); }
+  for (let x = -178; x <= 88; x += 18) if (!PIERS.some(p => Math.abs(x - p.x) < p.w / 2 + 2.5) && Math.abs(x) > 4) put(x, 2.4, Math.PI);
+  put(-37.4, 62.4, Math.PI / 2);        // Ale's door
+  put(-164.2, 15.4, Math.PI / 2);       // the Salted Kraken
+}
+const walkableAt = (x, z) => !blockedAt(x, z);
+
 function statue(scene) {
   const x = 0, z = 38, y = groundHeight(x, z);
   B.box.add(x, y, z, 7, 0.6, 7, '#d8c8a8');
@@ -310,16 +328,11 @@ function statue(scene) {
   B.box.add(x, y + 3.6, z, 4.4, 0.4, 4.4, GOLD);
   scene.userData.statueBase = { x, y: y + 4, z };          // the figure itself: characters.js makeStatue
   addCollider(x - 3.5, x + 3.5, z - 3.5, z + 3.5);
-  // Shrine bowls with soft light.
-  const glow = new THREE.CanvasTexture(glowTextureCanvas());
+  // Shrine bowls with real fire (fire.js: flames, sparks and light).
   for (const [sx, sz] of [[-3.2, -3.2], [3.2, -3.2], [-3.2, 3.2], [3.2, 3.2]]) {
     B.cyl.add(x + sx, y, z + sz, 0.35, 1.1, 0.35, '#d8c8a8');
     B.cyl.add(x + sx, y + 1.1, z + sz, 0.55, 0.3, 0.55, GOLD);
-    const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffe7a8', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    fl.position.set(x + sx, y + 1.7, z + sz);
-    fl.scale.set(1.8, 1.8, 1);
-    scene.add(fl);
-    scene.userData.flames.push(fl);
+    addFire(scene, x + sx, y + 1.38, z + sz, { size: 1.15, strength: 1.1 });
   }
   placeReadable(scene, signBoard('KING SHOU', 'Blood of transmutation · Light of the Sultanate', { bg: '#e8dcc2', fg: '#6a4a14' }), {
     x, y: y + 2.3, z: z - 2.03, w: 3.6, h: 0.9, title: 'Statue of King Shou',
@@ -717,5 +730,6 @@ export function buildCity(scene) {
   for (let x = -170; x < 90; x += 14) if (Math.abs(x) > 40 && !GUILDS.some(g => Math.abs(g.x - x) < 16)) palm(x, 9.5);
 
   for (const b of Object.values(B)) b.build(scene);
+  streetLamps(scene);                // last, once every building is standing (they skip anything solid)
   scene.userData.windowMat = B.dark.material;
 }

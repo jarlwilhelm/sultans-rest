@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { groundHeight, colliders, PALACE, PALACE_GATE } from './land.js';
 import { hollow, prop, lamp, wood } from './interiors.js';
 import { doorways } from './rooms.js';
+import { addFire } from './fire.js';
 import { readables, placeReadable, signBoard } from './signs.js';
 import { wallPoster } from './posters.js';
 import { surface } from './look.js';
@@ -194,7 +195,7 @@ export function furnish(scene) {
   const hall = scene.userData.hall, fountain = scene.userData.fountain;
   if (hall) prop(scene, 'palace_hall', hall.cx, hall.y, hall.hz);
   if (fountain) prop(scene, 'palace_fountain', fountain.x, fountain.y, fountain.z);
-  if (hall) for (const s of [-1, 1]) lamp(scene, hall.cx + s * 10.8, hall.y + 2.0, hall.hz - 7, '#ff9a3a', 3.0);
+  if (hall) for (const s of [-1, 1]) addFire(scene, hall.cx + s * 10.8, hall.y + 1.45, hall.hz - 7, { size: 1.3, strength: 1.2 });   // the braziers
 
   // People with names in the story (quests.js).
   for (const [id, n] of Object.entries(NAMED)) posts.push({ x: n.x, z: n.z, ry: n.ry, role: n.role, race: n.race, label: n.title, npc: { kind: 'named', id } });
