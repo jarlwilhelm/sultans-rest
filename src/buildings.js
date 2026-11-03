@@ -263,6 +263,15 @@ export function furnish(scene) {
 
   // The hall itself from Blender (tools/blender/guilds.py): columns, windows, chandeliers, banners and the guild's own things.
   hallDressing(scene, ad, 'guild_adventurers', [[12.0, 12.7, -6.95, -4.65], [12.0, 12.7, 4.65, 6.95], [-12.7, -12.0, -6.95, -4.65], [-12.7, -12.0, 4.65, 6.95], [-4.95, -4.05, -5.25, -4.35], [3.3, 5.7, -5.5, -4.1]]);
+
+  // The Mariners' Guild: the pilots' hall (opens at level 6).
+  const mr = S.mariners;
+  if (mr) {
+    hallDressing(scene, mr, 'guild_mariners', [[-3.1, 3.1, 4.05, 5.25], [-2.65, 2.65, -0.95, 1.95], [10.45, 11.95, -3.45, -2.55], [10.45, 11.95, 2.55, 3.45],
+      [-11.95, -10.45, -3.45, -2.55], [-11.95, -10.45, 2.55, 3.45], [3.55, 4.85, 5.25, 5.95], [-4.85, -3.75, 5.05, 6.15]]);
+    lamp(scene, mr.x, mr.fy + 5.6, mr.z - 3.2, '#b77cff', 3.4);
+    posts.push({ x: mr.x, z: mr.z1 - 1.8, ry: 0, role: 'pilot', race: 'tiefling', label: "Master pilot of the Mariners' Guild", npc: { kind: 'guild', guild: 'mariners' } });
+  }
 }
 
 // The map in the Merchants' Guild: sea routes from Sultan's Rest to the lands whose ships tie up at the piers.

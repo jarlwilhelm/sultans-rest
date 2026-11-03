@@ -238,8 +238,8 @@ export const GUILDS = [
 function guildHall(scene, gd, seed) {
   const x = gd.x, z = 24, w = 26, d = 16;
   const base = lowest(x, z, w, d), h = 12;
-  // Halls you can enter (once your level opens the door); the Mariners' Guild stays shut.
-  const doorLevel = { merchants: 3, transmuters: 4, adventurers: 5 }[gd.id];
+  // Halls you can enter (once your level opens the door).
+  const doorLevel = { merchants: 3, transmuters: 4, adventurers: 5, mariners: 6 }[gd.id];
   if (doorLevel) {
     scene.userData.shells[gd.id] = hollow(scene, { x, z, w, d, h: h - 0.05, color: WHITE, doorW: 3.6, doorH: 5.5, lockLevel: doorLevel, name: gd.name, doorColor: '#3a2412' });
   } else {

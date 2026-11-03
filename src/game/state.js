@@ -26,7 +26,7 @@ export const UNLOCKS = {
   3: 'Small Store; the Merchants\' Guild (inside)',
   4: 'Glass Kiln; the Transmuters\' workshop (inside)',
   5: 'Alley Chase; the Adventurers\' Guild (inside)',
-  6: 'Bigger Store',
+  6: 'Bigger Store; the Mariners\' Guild (inside)',
   7: 'Ward Keeper; someone will be waiting at Ale\'s house tonight',
   8: 'Store Add-on; the palace',
   9: '',

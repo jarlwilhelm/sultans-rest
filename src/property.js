@@ -119,6 +119,11 @@ export function buildProperty(scene) {
   colliders.push(collider);
   const shackCols = [0, 1, 2].map(() => { const c = { x0: 0, x1: 0, z0: 0, z1: 0 }; colliders.push(c); return c; });
   let hutFurnished = false, stallBuilt = false;
+  const stallCol = { x0: 0, x1: 0, z0: 0, z1: 0 };
+  // Each store's counter and furniture are solid only while that store stands (the next one replaces it).
+  const storeCols = { 2: [], 3: [] };
+  const storeBlock = (k, x0, x1, z0, z1) => { const c = { x0, x1, z0, z1, on: { x0, x1, z0, z1 } }; colliders.push(c); storeCols[k].push(c); };
+  colliders.push(stallCol);
   // Inside your store: a counter where you sell, shelves showing what you sell.
   const inside = { 2: new THREE.Group(), 3: new THREE.Group() };
   store.add(inside[2]); big.add(inside[3]);
@@ -131,7 +136,7 @@ export function buildProperty(scene) {
     const sh = k === 2 ? storeShell : bigShell;
     const counter = new THREE.Mesh(new THREE.BoxGeometry(k === 2 ? 3.4 : 5, 1.0, 0.8), wood);
     counter.position.set(sh.x, sh.fy + 0.5, sh.z1 - 1.6); counter.castShadow = true; g.add(counter);
-    if (!furnished['col' + k]) { furnished['col' + k] = true; colliders.push({ x0: sh.x - (k === 2 ? 1.7 : 2.5), x1: sh.x + (k === 2 ? 1.7 : 2.5), z0: sh.z1 - 2.0, z1: sh.z1 - 1.2 }); }
+    if (!furnished['col' + k]) { furnished['col' + k] = true; storeBlock(k, sh.x - (k === 2 ? 1.7 : 2.5), sh.x + (k === 2 ? 1.7 : 2.5), sh.z1 - 2.0, sh.z1 - 1.2); }
     const wares = [['Lettuce_Harvested', 0.3], ['BushBerries_Harvested', 0.22], ['Pot_Small', 0.24], ['Potion2_Empty', 0.3], ['Chest_Ingots', 0.3]].slice(0, tier() + 1);
     const shelves = k === 2 ? 3 : 6;
     for (let i = 0; i < shelves; i++) {
@@ -149,7 +154,7 @@ export function buildProperty(scene) {
       lamp(g, sh.x, k === 2 ? sh.fy + 2.75 : sh.fy + 5.15, k === 2 ? sh.z - 0.3 : sh.z - 0.5, '#ffc46b', k === 2 ? 0.55 : 1.6);
       if (!furnished['decor' + k]) {
         furnished['decor' + k] = true;
-        const block = (x0, x1, z0, z1) => colliders.push({ x0: sh.x + x0, x1: sh.x + x1, z0: sh.z + z0, z1: sh.z + z1 });
+        const block = (x0, x1, z0, z1) => storeBlock(k, sh.x + x0, sh.x + x1, sh.z + z0, sh.z + z1);
         if (k === 2) { block(-1.95, -1.25, -3.05, -2.35); block(1.05, 1.75, -3.05, -2.35); }
         else { block(-2.75, -1.05, -1.15, -0.05); block(1.05, 2.75, -1.15, -0.05); block(-4.95, -4.2, -4.95, -4.2); block(4.2, 4.95, -4.95, -4.2); }
       }
@@ -188,7 +193,6 @@ export function buildProperty(scene) {
         // The market stall from Blender (tools/blender/property.py) replaces the plain boxes.
         stallBuilt = true;
         for (const m of plainStall) m.visible = false;
-        colliders.push({ x0: x + 2.1, x1: x + 2.9, z0: sz - 0.95, z1: sz + 0.5 });
         lamp(shack, x - 1.2, y + 2.25, sz, '#ffd38a', 0.9);
       }
       if (!hutFurnished && prop(shack, 'Crate', hut.x0 + 0.45, hut.fy, hut.z1 - 0.45, { h: 0.6 })) {
@@ -206,6 +210,10 @@ export function buildProperty(scene) {
       }
     }
     else set(collider, 0, 0, 0, 0);
+    // Ale's hut and the stall's crate stack stand where the stores go: solid only while you have the stand.
+    setShellActive(hut, lvl === 1);
+    if (lvl === 1 && stallBuilt) set(stallCol, x + 2.1, x + 2.9, sz - 0.95, sz + 0.5); else set(stallCol, 0, 0, 0, 0);
+    for (const k of [2, 3]) for (const c of storeCols[k]) Object.assign(c, (k === 2 ? lvl === 2 : lvl >= 3) ? c.on : { x0: 0, x1: 0, z0: 0, z1: 0 });
     setShellActive(storeShell, lvl === 2);
     setShellActive(bigShell, lvl >= 3);
     furnishInside(lvl);
