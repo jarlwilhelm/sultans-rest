@@ -12,7 +12,8 @@ import { loadCharacters, makeStatue, makeCharacter } from './characters.js';
 import { RACES } from './people.js';
 import { state, save } from './game/state.js';
 import { busy, closePanel, panelKey, sheet, journal, toast, updateStatus, talk } from './game/ui.js';
-import { resetGame } from './game/state.js';
+import { resetGame, slot } from './game/state.js';
+import { titleMenu } from './menu.js';
 import { interact, newDay } from './game/npcs.js';
 import { arcade } from './minigames/index.js';
 import { daylight } from './daylight.js';
@@ -77,6 +78,7 @@ async function main() {
   makeStatue(scene, scene.userData.statueBase);
   const flames = scene.userData.flames;
   const fx = effects(renderer, scene, camera);
+  try { const g = localStorage.getItem('lavine-graphics'); if (g != null) fx.quality = +g; } catch { /* fine */ }
   const updateCompass = compass($('hud'));
 
   // You, as others see you (third person, V). Rebuilt when you change your look.
@@ -140,13 +142,14 @@ async function main() {
   addEventListener('mouseup', () => { dragging = false; });
   let mapOpen = false;
   const free = () => !doorMoving() && !reading && !busy() && !arcade.active && !mapOpen && $('creator').classList.contains('hidden');
-  $('start').addEventListener('click', () => {
+  // The title menu (menu.js): Continue / New Game / Load Game / Options. Playing starts here.
+  const play = () => {
     $('start').classList.add('hidden');
     $('hud').classList.remove('hidden');
     sound.start();
     if (!state.flags.intro) intro();       // your name, your people, the letter about Ale
     else lock();
-  });
+  };
   $('resume').addEventListener('click', lock);
   canvas.addEventListener('click', () => { if (free() && $('start').classList.contains('hidden')) lock(); });
   document.addEventListener('pointerlockchange', () => {
@@ -198,6 +201,7 @@ async function main() {
     if (e.code === 'Space' && locked() && free() && player.jump === 0 && player.vy === 0) { player.vy = 5.2; e.preventDefault(); }
     if (e.code === 'KeyG') {
       fx.quality = (fx.quality + 2) % 3;
+      try { localStorage.setItem('lavine-graphics', String(fx.quality)); } catch { /* fine */ }
       toast(['Graphics: low (fastest)', 'Graphics: medium (glow)', 'Graphics: high (glow + soft shadows)'][fx.quality]);
     }
   });
@@ -221,12 +225,14 @@ async function main() {
         'W A S D walk · mouse look · Shift run · Space jump · V see yourself',
         'E talk, read, use · 1-9 pick an answer · C character · J your story · M map',
         'N sound on/off · G graphics · P pause · Esc frees the mouse'], options: [{ label: 'Back', do: node }] }) },
-      { label: `Graphics: ${q[fx.quality]}`, do: () => { fx.quality = (fx.quality + 2) % 3; return node(); } },
+      { label: `Graphics: ${q[fx.quality]}`, do: () => { fx.quality = (fx.quality + 2) % 3; try { localStorage.setItem('lavine-graphics', String(fx.quality)); } catch { /* fine */ } return node(); } },
       { label: `Sound: ${sound.muted ? 'off' : 'on'}`, do: () => { sound.toggle(); $('mute').textContent = sound.muted ? 'Sound off (N)' : ''; return node(); } },
       { label: `Music: ${(vols.find(v => Math.abs(v[1] - (sound.audio ? (sound.audio.muted ? 0 : sound.audio.volume) : 0.18)) < 0.01) || vols[2])[0]}`, do: () => {
         if (sound.audio) { const cur = vols.findIndex(v => Math.abs(v[1] - sound.audio.volume) < 0.01); const nx = vols[(cur + 1) % vols.length]; sound.audio.volume = nx[1]; }
         return node();
       } },
+      { label: 'Save now', hint: `Slot ${slot} (the game also saves by itself)`, do: () => { save(); toast(`Saved to Slot ${slot}.`); return node(); } },
+      { label: 'Quit to the title menu', hint: 'saves first', do: () => { save(); location.reload(); return 'keep'; } },
       { label: 'Start over', hint: 'erases your game', do: () => ({ name: 'Start over?', text: ['This erases your save: your shop, your story, your gold. Are you sure?'], options: [
         { label: 'Yes, start over', do: () => { resetGame(); location.reload(); return 'keep'; } }, { label: 'No', do: node }] }) },
     ] });
@@ -429,6 +435,7 @@ async function main() {
   });
   updateStatus();
   $('loading').classList.add('hidden');
+  titleMenu({ onPlay: play, fx, sound });
   $('start').classList.remove('hidden');
   frame();
 

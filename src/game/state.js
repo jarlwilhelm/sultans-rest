@@ -46,7 +46,17 @@ export const SKILLS = {
   'Sleight of Hand': 'DEX', Acrobatics: 'DEX', Athletics: 'STR', Investigation: 'INT',
 };
 
-const KEY = 'lavine-sultans-rest-save-v2';
+// Saves live in this browser (localStorage), in three slots. The game autosaves into the slot you're playing.
+// (Older single saves move into Slot 1 the first time.)
+const OLD_KEY = 'lavine-sultans-rest-save-v2';
+export const SLOTS = 3;
+export const slotKey = (n) => `lavine-sultans-rest-slot-${n}`;
+const LAST = 'lavine-sultans-rest-last-slot';
+const get = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const put = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* private window: no saving */ } };
+if (get(OLD_KEY) && !get(slotKey(1))) { put(slotKey(1), get(OLD_KEY)); put(OLD_KEY, null); put(LAST, '1'); }
+export let slot = Math.min(SLOTS, Math.max(1, parseInt(get(LAST) || '1', 10) || 1));
+
 const fresh = () => ({
   gold: 10, pack: {}, rank: 1, renown: 0, reputation: { merchants: 0, mariners: 0, transmuters: 0, adventurers: 0, palace: 0 },
   sheet: structuredClone(SHEET), day: 1, minute: 8 * 60, // 8:00 in the morning
@@ -54,22 +64,42 @@ const fresh = () => ({
   name: null, race: null, clues: [],
 });
 
-export const state = load() || fresh();
+export const state = load(slot) || fresh();
 
-function load() {
+function load(n) {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = get(slotKey(n));
     if (!raw) return null;
     return Object.assign(fresh(), JSON.parse(raw));
   } catch { return null; }
 }
 export function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private window: no saving */ }
+  state.savedAt = Date.now();
+  put(slotKey(slot), JSON.stringify(state));
+  put(LAST, String(slot));
 }
 export function resetGame() {
-  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  put(slotKey(slot), null);
   Object.assign(state, fresh());
 }
+// What's in a slot, for the title menu: null if empty.
+export function slotSummary(n) {
+  try {
+    const raw = get(slotKey(n));
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    let lv = 1; while (lv < LEVELS.length && (s.renown || 0) >= LEVELS[lv]) lv++;
+    return { name: s.name || 'Unnamed', race: s.race, level: lv, day: s.day || 1, rank: RANKS[s.rank || 1]?.title, gold: s.gold, savedAt: s.savedAt, started: !!s.flags?.intro };
+  } catch { return null; }
+}
+// Pick a slot to play (a new game wipes it first). The page reloads, since the city is built from the save.
+export function useSlot(n, { wipe = false } = {}) {
+  if (wipe) put(slotKey(n), null);
+  put(LAST, String(n));
+  try { sessionStorage.setItem('lavine-go', '1'); } catch { /* fine */ }
+  location.reload();
+}
+export function deleteSlot(n) { put(slotKey(n), null); }
 
 export const rank = () => RANKS[state.rank];
 export const nextRank = () => RANKS[state.rank + 1] || null;

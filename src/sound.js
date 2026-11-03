@@ -1,6 +1,8 @@
 // The harbor's sound, made live with the browser's audio engine (no sound files):
 // waves, a crowd murmur, gulls and a distant harbor bell. Louder by the water, quieter uphill.
+const pref = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 export class HarborSound {
+  muted = pref('lavine-sound') === 'off';
   start() {
     if (this.ctx) return;
     const ctx = this.ctx = new AudioContext();
@@ -49,7 +51,8 @@ export class HarborSound {
     this.nextGull = ctx.currentTime + 2;
     this.nextBell = ctx.currentTime + 15;
     this.nextChatter = 0;
-    this.muted = false;
+    // Your choices from the Options menu (remembered in this browser).
+    if (this.muted) { this.master.gain.value = 0; this.audio.muted = true; }
   }
 
   // Quiet filler music (Pixabay, free to use): tracks in turn with a little silence between,
@@ -58,7 +61,8 @@ export class HarborSound {
     const tracks = ['desert-serenity', 'echoes-of-the-desert', 'desert-wind-meditation', 'desert-voices', 'ancient-ambient'];
     let i = Math.floor(Math.random() * tracks.length);
     const a = this.audio = new Audio();
-    a.volume = 0.18;
+    const mv = pref('lavine-music');
+    a.volume = mv != null ? +mv : 0.18;
     const next = () => { a.src = `assets/music/${tracks[i % tracks.length]}.mp3`; i++; a.play().catch(() => {}); };
     a.addEventListener('ended', () => setTimeout(next, 12000 + Math.random() * 15000));
     next();
@@ -101,8 +105,9 @@ export class HarborSound {
   }
 
   toggle() {
-    if (!this.ctx) return;
     this.muted = !this.muted;
+    try { localStorage.setItem('lavine-sound', this.muted ? 'off' : 'on'); } catch { /* fine */ }
+    if (!this.ctx) return this.muted;
     this.master.gain.setTargetAtTime(this.muted ? 0 : 0.8, this.ctx.currentTime, 0.1);
     if (this.audio) this.audio.muted = this.muted;
     return this.muted;

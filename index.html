@@ -27,7 +27,16 @@
     position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
     background: radial-gradient(ellipse at center, rgba(30, 18, 6, 0.35), rgba(30, 18, 6, 0.75)); color: var(--sand); text-align: center;
   }
-  #start { cursor: pointer; }
+  #start { cursor: default; }
+  #menu { display: flex; flex-direction: column; gap: 10px; width: min(520px, 90vw); margin: 4px auto 0; }
+  #menu .mbtn { display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(20, 12, 4, 0.55); border: 1px solid rgba(231, 195, 90, 0.55); color: var(--sand); padding: 11px 18px; cursor: pointer; font: inherit; transition: background 0.15s, border-color 0.15s; }
+  #menu .mbtn:hover { background: rgba(60, 36, 10, 0.75); border-color: var(--gold); }
+  #menu .mbtn.primary { border-color: var(--gold); background: rgba(60, 36, 10, 0.7); }
+  #menu .mbtn.danger { border-color: #b8382b; }
+  #menu .mbtn.small { padding: 4px 12px; align-self: flex-end; margin-top: -6px; }
+  #menu .mlabel { font-family: Cinzel, serif; letter-spacing: 0.16em; font-size: 20px; color: var(--gold); }
+  #menu .msub { font-size: 15px; font-style: italic; opacity: 0.85; }
+  #menu .mtitle { font-family: Cinzel, serif; letter-spacing: 0.1em; font-size: 18px; color: var(--gold); margin-bottom: 4px; }
   #start h1 { font-family: Cinzel, serif; font-size: clamp(36px, 7vw, 84px); letter-spacing: 0.08em; margin: 0; color: var(--gold); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); }
   #start .sub { font-size: clamp(16px, 2.4vw, 24px); font-style: italic; margin: 6px 0 28px; }
   #start .go { font-family: Cinzel, serif; letter-spacing: 0.2em; border: 1px solid var(--gold); padding: 12px 26px; color: var(--gold); }
@@ -136,7 +145,7 @@
   <h1>SULTAN'S REST</h1>
   <div class="sub">The harbor of the Sultanate · Lavine</div>
   <div class="sub" style="font-size:18px;margin-top:-18px">Arrive with a few coins. Leave with the Steward's Charter.</div>
-  <div class="go">CLICK TO ENTER</div>
+  <div id="menu"></div>
   <div class="keys">
     <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> walk &nbsp;·&nbsp; mouse to look &nbsp;·&nbsp; <kbd>Shift</kbd> run &nbsp;·&nbsp; <kbd>Space</kbd> jump<br>
     <kbd>E</kbd> talk to people, read signs &nbsp;·&nbsp; <kbd>C</kbd> character &nbsp;·&nbsp; <kbd>J</kbd> your story &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>9</kbd> pick an answer<br>
