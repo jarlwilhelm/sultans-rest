@@ -6,7 +6,8 @@ import { groundHeight, colliders, QUAY_Y } from './land.js';
 import { surface } from './look.js';
 import { signBoard, canvasTexture, readables } from './signs.js';
 import { makeShip } from './ships.js';
-import { state, level } from './game/state.js';
+import { state, level, packRoom, save } from './game/state.js';
+import { GOODS } from './game/economy.js';
 import { prop, hollow, setShellActive, lamp } from './interiors.js';
 import { trade, toast } from './game/ui.js';
 import { questState } from './game/quests.js';
@@ -16,6 +17,35 @@ export const TIERS = ['Cabbages', 'Fresh Produce', 'Produce & Spice', 'Fine Good
 export const tier = () => Math.min(4, Math.floor((level() - 1) / 2));
 
 export const PLOT = { x: -50, z: 24, w: 12, d: 13 };
+
+// The supply chest in your store: your suppliers restock it every morning, with more and finer goods as you
+// level up (the bigger store gets half as much again). What doesn't fit in your pack stays in the chest.
+const SUPPLY = [
+  { cabbage: 4, dates: 2 },
+  { cabbage: 3, dates: 3, grain: 3 },
+  { dates: 3, cumin: 3, glass: 1, rum: 1 },
+  { cumin: 3, saffron: 1, glass: 2, tools: 2, moonleaf: 1 },
+  { saffron: 2, silk: 1, wine: 1, gears: 1, pearls: 1 },
+];
+function supplyToday() {
+  if (state.supply?.day !== state.day) {
+    const bigger = state.rank >= 3 ? 1.5 : 1;
+    state.supply = { day: state.day, items: Object.fromEntries(Object.entries(SUPPLY[tier()]).map(([g, n]) => [g, Math.ceil(n * bigger)])) };
+  }
+  return state.supply;
+}
+function openSupply() {
+  const sup = supplyToday(), got = [];
+  for (const [g, n] of Object.entries(sup.items)) {
+    const take = Math.min(n, packRoom());
+    if (take > 0) { state.pack[g] = (state.pack[g] || 0) + take; sup.items[g] -= take; got.push(`${take} ${GOODS[g].name}`); }
+    if (!sup.items[g]) delete sup.items[g];
+  }
+  save();
+  const left = Object.values(sup.items).reduce((a, b) => a + b, 0);
+  if (got.length) toast(`From the supply chest: ${got.join(', ')}.${left ? ` Your pack is full; ${left} more wait in the chest.` : ''}`, 6000);
+  else toast(left ? 'Your pack is full. The goods wait in the chest.' : 'The chest is empty. Your suppliers bring more in the morning.', 5000);
+}
 
 export function buildProperty(scene) {
   const { x, z, w, d } = PLOT;
@@ -128,6 +158,7 @@ export function buildProperty(scene) {
   const inside = { 2: new THREE.Group(), 3: new THREE.Group() };
   store.add(inside[2]); big.add(inside[3]);
   const furnished = {};
+  const supplyRead = { pos: new THREE.Vector3(), title: 'Supply chest', verb: 'Open the supply chest (restocked every morning)', action: openSupply };
   function furnishInside(lvl) {
     const k = lvl >= 3 ? 3 : lvl;
     if (k < 2 || furnished[k + ':' + tier()] || !prop(new THREE.Group(), 'Crate', 0, 0, 0, { h: 1 })) return;
@@ -149,6 +180,11 @@ export function buildProperty(scene) {
       }
     }
     for (let i = 0; i < 3; i++) prop(g, 'Crate', sh.x - 1 + i, sh.fy, sh.z1 - 0.5, { h: 0.6, ry: i });
+    // The supply chest, in the back corner on the east side.
+    prop(g, 'Chest_Closed', sh.x0 + 0.75, sh.fy, sh.z1 - 0.6, { h: 0.7, ry: Math.PI });
+    supplyRead.pos.set(sh.x0 + 0.75, sh.fy + 0.6, sh.z1 - 0.6);
+    if (!readables.includes(supplyRead)) readables.push(supplyRead);
+    if (!furnished['chest' + k]) { furnished['chest' + k] = true; storeBlock(k, sh.x0 + 0.3, sh.x0 + 1.2, sh.z1 - 1.0, sh.z1 - 0.2); }
     // Everything around the counter and shelves, from Blender (tools/blender/property.py).
     if (prop(g, k === 2 ? 'store_small_room' : 'store_big_room', sh.x, sh.fy, sh.z)) {
       lamp(g, sh.x, k === 2 ? sh.fy + 2.75 : sh.fy + 5.15, k === 2 ? sh.z - 0.3 : sh.z - 0.5, '#ffc46b', k === 2 ? 0.55 : 1.6);
@@ -226,7 +262,7 @@ export function buildProperty(scene) {
       const c = signBoard((state.shopName || 'Your Stand').toUpperCase(), TIERS[tier()], { bg: '#2a1a0e', fg: '#e7c35a' });
       signMat.map?.dispose();
       signMat.map = canvasTexture(c); signMat.needsUpdate = true;
-      const at = [null, [x, y + 3.2, sz - 1.98, 3.6, 0.9], [x, y + 4.0, z - 3.56, 5.2, 1.3], [x, y + 5.2, z - 5.56, 4.6, 1.15], [x, y + 5.2, z - 5.56, 4.6, 1.15]][lvl];
+      const at = [null, [x, y + 3.2, sz - 1.98, 3.6, 0.9], [x, y + 3.63, z - 3.56, 2.9, 0.72], [x, y + 5.55, z - 5.56, 4.0, 1.0], [x, y + 5.55, z - 5.56, 4.0, 1.0]][lvl];
       sign.position.set(at[0], at[1], at[2]); sign.scale.set(at[3] / 4, at[4], 1);
       sign.visible = true;
       Object.assign(signRead, { pos: sign.position.clone(), title: state.shopName || 'Your stand', canvas: c });
