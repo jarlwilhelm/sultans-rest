@@ -33,6 +33,25 @@ export async function loadProps() {
 }
 
 // Materials by name -> the city's materials (shared, so a room of a thousand pieces stays cheap).
+// A cluster of leaves, drawn once: pointed leaves with a midrib, lighter toward the tips, transparent around them.
+function leafTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 11; i++) {
+    const x = 20 + r() * 88, y = 20 + r() * 88, a = r() * Math.PI * 2, len = 30 + r() * 22, w = len * 0.32;
+    g.save(); g.translate(x, y); g.rotate(a);
+    const grad = g.createLinearGradient(0, 0, len, 0);
+    const v = 0.75 + r() * 0.25;
+    grad.addColorStop(0, `rgb(${150 * v | 0},${190 * v | 0},${130 * v | 0})`); grad.addColorStop(1, `rgb(${215 * v | 0},${240 * v | 0},${185 * v | 0})`);
+    g.fillStyle = grad;
+    g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(len * 0.45, -w, len, 0); g.quadraticCurveTo(len * 0.45, w, 0, 0); g.fill();
+    g.strokeStyle = 'rgba(70,90,50,0.6)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(1, 0); g.lineTo(len * 0.92, 0); g.stroke();
+    g.restore();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 export const DRESS = (() => {
   const woodTex = (color, tile = 1.2) => { const m = surface('weathered_brown_planks', { tile, detail: 0.75 }); m.color.set(color); return m; };
   const metal = (color, metalness, roughness) => new THREE.MeshStandardMaterial({ color, metalness, roughness });
@@ -47,6 +66,8 @@ export const DRESS = (() => {
     Wax: new THREE.MeshStandardMaterial({ color: '#efe2c0', roughness: 0.7 }),
     Fire: glow(2.2, 1.3, 0.45), Ember: glow(1.8, 0.45, 0.12), Potion: glow(0.5, 1.6, 0.6), Ward: glow(1.3, 0.75, 2.0),
     Leaf: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.75, side: THREE.DoubleSide }),   // tinted per copy
+    LeafCore: new THREE.MeshStandardMaterial({ color: '#6f7d62', roughness: 0.9 }),          // the shade inside a bush; tinted too
+    LeafCard: new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.5, roughness: 0.7, side: THREE.DoubleSide }),   // tinted per copy
     Flower: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 }),                          // tinted per copy
     Bark: new THREE.MeshStandardMaterial({ color: '#6e5640', roughness: 1 }),
     Marble: new THREE.MeshStandardMaterial({ color: '#eee6d8', roughness: 0.3, metalness: 0.02 }),
@@ -99,7 +120,7 @@ export function instanced(scene, name, list) {
       q.setFromEuler(new THREE.Euler(s.rx || 0, s.ry || 0, s.rz || 0, 'YXZ'));
       place.compose(new THREE.Vector3(s.x, s.y, s.z), q, one.set(s.s || 1, s.s || 1, s.s || 1)).multiply(m.matrixWorld);
       im.setMatrixAt(i, place);
-      if (m.material === DRESS.Awning || m.material === DRESS.Leaf) im.setColorAt(i, new THREE.Color(s.color || '#ffffff'));
+      if (m.material === DRESS.Awning || m.material === DRESS.Leaf || m.material === DRESS.LeafCard || m.material === DRESS.LeafCore) im.setColorAt(i, new THREE.Color(s.color || '#ffffff'));
       else if (m.material === DRESS.Flower) im.setColorAt(i, new THREE.Color(s.flower || '#ffffff'));
     });
     im.castShadow = m.material !== DRESS.Fire;

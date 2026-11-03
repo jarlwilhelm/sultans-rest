@@ -128,11 +128,19 @@ function lizardHead(head, skin, rng) {
 
 // ---------- What you wear and carry (the wardrobe) ----------
 // Hats sit on the head bone (top of the head is 0.27 up); held things go in the right hand.
-function addHat(head, hat) {
+function addHat(head, hat, color) {
   if (!head || !hat) return;
   const straw = FL('#d9b86a'), red = FL('#a8241c'), cream = FL('#efe6d4'), gold = new THREE.MeshStandardMaterial({ color: '#e0b347', metalness: 0.7, roughness: 0.3 });
   const brim = new THREE.CylinderGeometry(1, 1, 1, 14).translate(0, 0.5, 0);
-  if (hat === 'turban') { part(head, lowBall, cream, [0, 0.215, 0.0], [0.13, 0.08, 0.13]); part(head, lowBall, cream, [0, 0.26, -0.01], [0.1, 0.06, 0.1]); }
+  if (hat === 'turban') { const c = color ? FL(color) : cream; part(head, lowBall, c, [0, 0.215, 0.0], [0.13, 0.08, 0.13]); part(head, lowBall, c, [0, 0.26, -0.01], [0.1, 0.06, 0.1]); }
+  else if (hat === 'kufiya') {
+    // A headscarf falling to the shoulders, held by a dark cord.
+    const c = FL(color && color !== '#b8382b' ? '#efe6d4' : '#efe6d4'), check = FL(color === '#b8382b' ? '#b8382b' : '#e8dcc2');
+    part(head, lowBall, c, [0, 0.2, -0.005], [0.125, 0.11, 0.13]);
+    part(head, box, check, [0, 0.1, -0.09], [0.24, 0.24, 0.05], [0.15, 0, 0]);
+    for (const s of [-1, 1]) part(head, box, check, [s * 0.11, 0.08, -0.01], [0.04, 0.22, 0.17], [0, 0, s * 0.1]);
+    const cord = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.014, 6, 18), FL('#1a1410')); cord.rotation.x = Math.PI / 2; cord.position.set(0, 0.235, -0.005); head.add(cord);
+  }
   else if (hat === 'fez') { part(head, new THREE.CylinderGeometry(0.75, 1, 1, 12).translate(0, 0.5, 0), red, [0, 0.2, 0.0], [0.09, 0.12, 0.09]); part(head, lowBall, FL('#1a1410'), [0.05, 0.3, -0.05], [0.015, 0.04, 0.015]); }
   else if (hat === 'widebrim') { part(head, brim, FL('#5a3e24'), [0, 0.21, 0.0], [0.24, 0.012, 0.24]); part(head, brim, FL('#5a3e24'), [0, 0.21, 0.0], [0.1, 0.1, 0.1]); part(head, brim, FL('#2b1606'), [0, 0.225, 0.0], [0.103, 0.02, 0.103]); }
   else if (hat === 'feathercap' || hat === 'gullfeather') {
@@ -204,12 +212,17 @@ export function makeCharacter({ race, role, height, girth, skin, look }, rng) {
     if (/Sword/.test(o.name) && role !== 'adventurer' && role !== 'guard') o.visible = false;   // (a group, so check before the mesh test)
     if (race === 'dragonborn' && /_Head$/.test(o.name)) o.visible = false;                     // the lizard head replaces it
     if (!o.isMesh) return;
-    if (look?.hat && onHead(o) && (BUILT_IN_HATS[base] || []).includes(o.material.name)) o.visible = false;
+    // The Farmer body's cowboy hat doesn't belong in the Sultanate: always off (headwear from addHat instead).
+    if ((look?.hat || base === 'men_Farmer') && onHead(o) && (BUILT_IN_HATS[base] || []).includes(o.material.name)) o.visible = false;
     o.material = recolor(o.material, { skin, hair, hue, sat, worker });
     o.castShadow = true;
     o.receiveShadow = true;
   });
   addFeatures(race, role, head, hips, skin, hair, rng);
+  if (base === 'men_Farmer' && !look?.hat) {
+    const h = look ? 'turban' : pickFrom(rng, ['turban', 'turban', 'kufiya', 'fez', 'kufiya']);
+    addHat(head, h, pickFrom(rng, ['#efe6d4', '#e8dcc2', '#2f6c8e', '#8e3b6c', '#b8382b', '#d7a33a', '#f3ede0']));
+  }
   let heldGrip = null;
   if (look) {
     let hand = null;
