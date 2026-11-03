@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sultan's Rest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>
+  :root {
+    --ink: #2b1606;
+    --sand: #f1e2c2;
+    --gold: #e7c35a;
+    --teal: #2f9c9a;
+    --shade: rgba(20, 12, 4, 0.62);
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #f0cf9c; font-family: "IM Fell English", Georgia, serif; }
+  #view canvas { display: block; }
+  .hidden { display: none !important; }
+  .panel {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(30, 18, 6, 0.35), rgba(30, 18, 6, 0.75)); color: var(--sand); text-align: center;
+  }
+  #start { cursor: pointer; }
+  #start h1 { font-family: Cinzel, serif; font-size: clamp(36px, 7vw, 84px); letter-spacing: 0.08em; margin: 0; color: var(--gold); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); }
+  #start .sub { font-size: clamp(16px, 2.4vw, 24px); font-style: italic; margin: 6px 0 28px; }
+  #start .go { font-family: Cinzel, serif; letter-spacing: 0.2em; border: 1px solid var(--gold); padding: 12px 26px; color: var(--gold); }
+  #start .keys { margin-top: 26px; font-size: 16px; line-height: 1.8; opacity: 0.9; }
+  kbd { font-family: Cinzel, serif; border: 1px solid rgba(241, 226, 194, 0.6); border-radius: 4px; padding: 1px 6px; font-size: 13px; }
+  #loading { font-family: Cinzel, serif; letter-spacing: 0.15em; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #cross { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255, 248, 230, 0.85); box-shadow: 0 0 4px rgba(0, 0, 0, 0.6); }
+  #look { position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%); color: #fff6e0; font-size: 18px; font-style: italic; text-shadow: 0 1px 4px #000, 0 0 10px #000; white-space: nowrap; }
+  #prompt { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); background: var(--shade); color: var(--gold); padding: 8px 18px; font-family: Cinzel, serif; letter-spacing: 0.06em; border: 1px solid rgba(231, 195, 90, 0.5); }
+  #place { position: absolute; left: 24px; top: 20px; color: #fff6e0; text-shadow: 0 1px 6px #000; font-family: Cinzel, serif; letter-spacing: 0.12em; font-size: 15px; opacity: 0.85; }
+  #compass { position: absolute; left: 50%; top: 14px; width: 520px; height: 34px; margin-left: -260px; background: linear-gradient(90deg, transparent, var(--shade) 15%, var(--shade) 85%, transparent); border-bottom: 1px solid rgba(231, 195, 90, 0.5); overflow: hidden; }
+  #compass::after { content: ''; position: absolute; left: 50%; top: 0; height: 100%; border-left: 2px solid rgba(231, 195, 90, 0.8); }
+  .cmark, .cpin { position: absolute; top: 8px; transform: translateX(-50%); font-family: Cinzel, serif; color: rgba(241, 226, 194, 0.7); font-size: 12px; }
+  .cmark.big { color: var(--sand); font-size: 16px; top: 6px; font-weight: 700; }
+  .cpin { top: 4px; font-size: 18px; }
+  .cpin.goal { color: var(--gold); } .cpin.mark { color: #e05a4a; } .cpin.home { color: #8fb0e8; font-size: 15px; }
+  .cpin::after { content: attr(data-d); position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 10px; white-space: nowrap; color: var(--sand); font-family: Georgia, serif; }
+  #goal { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); color: var(--gold); font-family: Cinzel, serif; font-size: 13px; letter-spacing: 0.04em; text-shadow: 0 1px 4px #000; white-space: nowrap; }
+  #map { position: fixed; inset: 0; background: rgba(20, 12, 4, 0.82); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5; }
+  #map canvas { max-height: 86vh; max-width: 94vw; box-shadow: 0 12px 50px rgba(0, 0, 0, 0.6); border: 3px solid #7a5a2a; cursor: crosshair; }
+  #creator { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(40, 24, 8, 0.85), rgba(15, 9, 3, 0.95)); display: flex; align-items: center; justify-content: center; z-index: 6; padding: 16px; box-sizing: border-box; }
+  .creator { display: flex; gap: 22px; background: #efe2c2; border: 2px solid #7a5a2a; padding: 20px; max-height: 92vh; overflow: auto; color: var(--ink); box-shadow: 0 12px 50px rgba(0, 0, 0, 0.6); }
+  .cview { background: radial-gradient(ellipse at 50% 70%, #f6ead0, #d8c49a); border: 1px solid #b89a6a; flex: none; }
+  .cform { width: 360px; }
+  .cform h3 { font-family: Cinzel, serif; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #7a5a2a; margin: 12px 0 6px; }
+  .crow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cbtn { font: inherit; font-size: 14px; padding: 5px 10px; background: #f7eed8; border: 1px solid #b89a6a; cursor: pointer; color: var(--ink); }
+  .cbtn.sw { width: 30px; height: 30px; padding: 0; border-radius: 50%; }
+  .cbtn.on { border: 2px solid #7a1408; box-shadow: 0 0 0 2px #e7c35a; }
+  @media (max-width: 820px) { .creator { flex-direction: column; align-items: center; } .cform { width: 100%; } }
+  #tired { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(5,3,1,0.95) 85%); z-index: 2; }
+  #fade { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #050302; color: var(--sand); display: flex; align-items: center; justify-content: center; font-family: Cinzel, serif; font-size: 24px; letter-spacing: 0.08em; transition: opacity 0.9s; z-index: 9; }
+  #fade.on { opacity: 1; }
+  .wlist { display: grid; gap: 4px; }
+  .wrow { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: #f7eed8; border: 1px solid #d8c49a; cursor: pointer; font-size: 15px; }
+  .wrow:hover { border-color: #7a5a2a; } .wrow.on { border-color: #7a1408; background: #fff7e2; }
+  .wrow.locked { opacity: 0.55; cursor: default; font-style: italic; }
+  .wname { flex: 1; } .wtag { font-family: Cinzel, serif; font-size: 12px; color: #7a1408; } .special { color: #b8862c; font-style: normal; }
+  .maphelp { margin-top: 10px; color: var(--sand); font-size: 15px; }
+  #toast { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); background: var(--shade); color: var(--sand); padding: 8px 18px; font-family: Cinzel, serif; letter-spacing: 0.05em; border: 1px solid rgba(231, 195, 90, 0.4); }
+  #mute { position: absolute; right: 24px; top: 20px; color: #fff6e0; text-shadow: 0 1px 4px #000; }
+  #reading { background: rgba(20, 12, 4, 0.78); cursor: default; }
+  #reading img { max-height: 82vh; max-width: 90vw; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
+  #reading img.wide { max-height: 40vh; }
+  #reading p { margin-top: 14px; opacity: 0.8; }
+  #hud.dim #cross, #hud.dim #look, #hud.dim #prompt { visibility: hidden; }
+  #status { position: absolute; right: 24px; top: 70px; display: flex; gap: 14px; font-family: Cinzel, serif; font-size: 14px; letter-spacing: 0.05em; }
+  #status span { background: var(--shade); color: var(--sand); padding: 5px 11px; border: 1px solid rgba(231, 195, 90, 0.35); }
+  #status #st-gold { color: var(--gold); }
+  #mute { top: 110px; }
+  #resume { position: fixed; left: 50%; bottom: 8%; transform: translateX(-50%); background: var(--shade); color: var(--gold); padding: 10px 22px; font-family: Cinzel, serif; letter-spacing: 0.1em; border: 1px solid var(--gold); cursor: pointer; }
+  /* Conversations, trading and the character sheet */
+  #panel { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 0 16px 6vh; background: linear-gradient(to top, rgba(20, 12, 4, 0.55), rgba(20, 12, 4, 0) 60%); }
+  #panel > div { width: min(860px, 100%); max-height: 82vh; overflow: auto; background: #efe2c2; color: var(--ink); border: 2px solid #7a5a2a; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 6px #e3d2a8; padding: 22px 26px; }
+  .who { font-family: Cinzel, serif; font-weight: 700; font-size: 20px; color: #6a3a10; margin-bottom: 8px; }
+  .says { font-size: 19px; line-height: 1.45; margin: 6px 0; }
+  .options { display: grid; gap: 6px; margin-top: 14px; }
+  .opt { display: flex; align-items: center; gap: 12px; text-align: left; font: inherit; font-size: 17px; background: #f7eed8; border: 1px solid #b89a6a; padding: 8px 12px; cursor: pointer; color: var(--ink); }
+  .opt:hover:not(:disabled) { background: #fff7e2; border-color: #7a5a2a; }
+  .opt:disabled { opacity: 0.5; cursor: default; }
+  .opt .num { font-family: Cinzel, serif; font-weight: 700; color: #7a1408; min-width: 1.6em; }
+  .opt .hint { margin-left: auto; font-size: 14px; font-style: italic; color: #6a5a3a; }
+  .opt.leave { margin-top: 12px; width: 100%; }
+  .trade .cols, .sheet .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .sheet .grid { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 700px) { .trade .cols, .sheet .grid { grid-template-columns: 1fr; } }
+  .trade h3, .sheet h3 { font-family: Cinzel, serif; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: #7a5a2a; margin: 8px 0 6px; }
+  .trade-info, .rankline { font-size: 16px; margin-bottom: 6px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px dotted #c8b088; font-size: 16px; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.3); flex: none; }
+  .gname { font-weight: bold; }
+  .from { font-size: 13px; font-style: italic; color: #6a5a3a; }
+  .price { margin-left: auto; font-family: Cinzel, serif; color: #6a3a10; white-space: nowrap; }
+  .paid { font-size: 12px; color: #6a5a3a; } .paid.up { color: #2e6b2a; } .paid.down { color: #8e1f24; }
+  .small { font: inherit; font-size: 13px; padding: 3px 8px; background: #f7eed8; border: 1px solid #b89a6a; cursor: pointer; white-space: nowrap; }
+  .small:disabled { opacity: 0.45; cursor: default; }
+  .nope, .empty { font-size: 13px; font-style: italic; color: #8a7a5a; }
+  .trade-msg { min-height: 22px; margin-top: 10px; font-style: italic; color: #2e6b2a; }
+  .stat { font-size: 15px; padding: 2px 0; } .stat.prof { font-weight: bold; }
+  .bar { height: 10px; background: #d8c49a; border: 1px solid #a8885a; margin: 6px 0; } .bar .fill { height: 100%; background: linear-gradient(90deg, #b8862c, #e7c35a); }
+  .small-note { font-size: 14px; font-style: italic; color: #5a4a2a; }
+  .answer { width: 100%; box-sizing: border-box; font: inherit; font-size: 22px; padding: 8px 10px; margin: 8px 0; border: 1px solid #7a5a2a; background: #fff8e6; color: var(--ink); }
+  .chapter .who { font-size: 26px; color: #7a1408; }
+  .journal { font-size: 14px; max-height: 140px; overflow: auto; background: #f7eed8; padding: 6px 10px; border: 1px solid #d8c49a; }
+  /* Dice */
+  #dicebox { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 12, 4, 0.55); z-index: 5; }
+  .dice { background: #efe2c2; border: 2px solid #7a5a2a; padding: 22px 40px; text-align: center; color: var(--ink); min-width: 280px; }
+  .dice .dc { font-family: Cinzel, serif; color: #6a5a3a; }
+  .die { font-family: Cinzel, serif; font-size: 64px; font-weight: 700; width: 120px; height: 120px; line-height: 120px; margin: 14px auto; background: #2b1606; color: var(--gold); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+  .die.crit { color: #7fe0ff; } .die.fumble { color: #e05a4a; }
+  .roll-line { font-size: 17px; min-height: 24px; }
+  .verdict { font-family: Cinzel, serif; font-size: 24px; font-weight: 700; min-height: 32px; margin-top: 6px; }
+  .verdict.good { color: #2e6b2a; } .verdict.bad { color: #8e1f24; }
+  /* Mini-games */
+  #arcade { position: fixed; inset: 0; background: #0d0905; display: flex; align-items: center; justify-content: center; z-index: 6; }
+  #arcade canvas { width: min(100vw, 150vh); aspect-ratio: 3 / 2; image-rendering: auto; box-shadow: 0 0 60px rgba(231, 195, 90, 0.15); }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="loading" class="panel">Raising the city…</div>
+<div id="start" class="panel hidden">
+  <h1>SULTAN'S REST</h1>
+  <div class="sub">The harbor of the Sultanate · Lavine</div>
+  <div class="sub" style="font-size:18px;margin-top:-18px">Arrive with a few coins. Leave with the Steward's Charter.</div>
+  <div class="go">CLICK TO ENTER</div>
+  <div class="keys">
+    <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> walk &nbsp;·&nbsp; mouse to look &nbsp;·&nbsp; <kbd>Shift</kbd> run &nbsp;·&nbsp; <kbd>Space</kbd> jump<br>
+    <kbd>E</kbd> talk to people, read signs &nbsp;·&nbsp; <kbd>C</kbd> character &nbsp;·&nbsp; <kbd>J</kbd> your story &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>9</kbd> pick an answer<br>
+    <kbd>V</kbd> see yourself &nbsp;·&nbsp; <kbd>M</kbd> map &nbsp;·&nbsp; <kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>N</kbd> sound &nbsp;·&nbsp; <kbd>G</kbd> graphics &nbsp;·&nbsp; <kbd>Esc</kbd> free the mouse
+  </div>
+</div>
+<div id="hud" class="hidden">
+  <div id="place">SULTAN'S REST · THE SULTANATE</div>
+  <div id="mute"></div>
+  <div id="cross"></div>
+  <div id="look"></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="toast" class="hidden"></div>
+  <div id="goal"></div>
+  <div id="status"><span id="st-rank"></span><span id="st-gold"></span><span id="st-pack"></span><span id="st-time"></span></div>
+</div>
+<div id="panel" class="hidden"></div>
+<div id="dicebox" class="hidden"></div>
+<div id="arcade" class="hidden"></div>
+<div id="map" class="hidden"></div>
+<div id="creator" class="hidden"></div>
+<div id="tired"></div>
+<div id="fade"></div>
+<div id="resume" class="hidden">Click to continue &nbsp;·&nbsp; <kbd>M</kbd> map &nbsp;·&nbsp; <kbd>C</kbd> character</div>
+<div id="reading" class="panel hidden">
+  <img id="reading-img" alt="">
+  <p><kbd>E</kbd> or <kbd>Esc</kbd> to put it down</p>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
