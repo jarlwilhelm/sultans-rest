@@ -2,6 +2,7 @@
 // placed once the models have loaded. No plain shapes: everything is a model.
 import { groundHeight, QUAY_Y } from './land.js';
 import { prop, instanced } from './interiors.js';
+import { plants } from './city.js';
 import { makeRng, pick, range } from './noise.js';
 
 // What lies on the table for each kind of stall: [model, height in metres].
@@ -16,6 +17,10 @@ const CLOTHS = ['#7a4ab0', '#b8382b', '#2e6c8e', '#d7a33a', '#2f9c9a', '#8e3b6c'
 
 export function placeGoods(scene) {
   instanced(scene, 'market_stall', scene.userData.marketStalls);
+  instanced(scene, 'palm', plants.palms);
+  instanced(scene, 'bush_green', plants.bushes.filter(b => !b.bloom));
+  instanced(scene, 'bush_flower', plants.bushes.filter(b => b.bloom));
+  instanced(scene, 'shrub_dry', plants.dry);
   const rng = makeRng(808);
   for (const st of scene.userData.stalls || []) {
     const tz = st.z - 1.3, y = groundHeight(st.x, tz) + 0.95;

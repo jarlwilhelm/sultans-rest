@@ -49,42 +49,31 @@ const lowest = (x, z, w, d) => Math.min(
   groundHeight(x - w / 2, z + d / 2), groundHeight(x + w / 2, z + d / 2)) - 0.3;
 
 // ---------- Plants ----------
+// The plants themselves are Blender models (tools/blender/plants.py), drawn all together by goods.js once loaded.
+// These only choose where each one stands, its size, turn and shade. (The random numbers are drawn exactly as
+// before, so the rest of the city comes out the same.)
+export const plants = { palms: [], bushes: [], dry: [] };
 export function palm(x, z, scale = 1) {
   const y = groundHeight(x, z);
   const lean = range(rng, -0.25, 0.25), dir = range(rng, 0, Math.PI * 2);
   const h = range(rng, 6, 9) * scale;
-  let px = x, pz = z, py = y;
-  const segs = 5;
-  for (let i = 0; i < segs; i++) {
-    const t = (i + 1) / segs;
-    const nx = x + Math.cos(dir) * lean * h * t * t, nz = z + Math.sin(dir) * lean * h * t * t;
-    const ny = y + h * t;
-    const m = new THREE.Matrix4();
-    const from = new THREE.Vector3(px, py, pz), to = new THREE.Vector3(nx, ny, nz);
-    const len = from.distanceTo(to);
-    const qn = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
-    const r = 0.28 * scale * (1 - t * 0.35);
-    m.compose(from, qn, new THREE.Vector3(r, len, r));
-    B.cyl.addMatrix(m, i % 2 ? '#7d6243' : '#8d7150');
-    px = nx; pz = nz; py = ny;
-  }
-  const fronds = 9;
-  for (let i = 0; i < fronds; i++) {
-    const a = (i / fronds) * Math.PI * 2 + range(rng, -0.2, 0.2);
-    B.leaf.add(px, py, pz, range(rng, 3.2, 4.4) * scale, 1, 1.7 * scale, pick(rng, ['#4f7d2c', '#5c8a30', '#46722a']), a, 0, -range(rng, 0.25, 0.6));
-  }
-  B.ball.add(px, py - 0.3, pz, 0.28 * scale, 0.28 * scale, 0.28 * scale, '#6a4a22');
+  let shade = '#4f7d2c';
+  for (let i = 0; i < 9; i++) { range(rng, -0.2, 0.2); range(rng, 3.2, 4.4); shade = pick(rng, ['#4f7d2c', '#5c8a30', '#46722a', '#5f8f33']); range(rng, 0.25, 0.6); }
+  plants.palms.push({ x, y, z, s: h / 7.5, ry: dir, rz: lean * 0.25, color: shade });
   addCollider(x - 0.35, x + 0.35, z - 0.35, z + 0.35);
 }
 
 function bush(x, z, s = 1, color) {
   const y = groundHeight(x, z);
-  B.ball.add(x, y + 0.5 * s, z, 0.9 * s, 0.7 * s, 0.9 * s, color || pick(rng, ['#5f8a34', '#6b9440', '#527a2e', '#7aa04a']));
+  const c = color || pick(rng, ['#5f8a34', '#6b9440', '#527a2e', '#7aa04a']);
+  // Flowering bushes in the richer streets near the water (picked by position, not by the random numbers).
+  const bloom = wealth(z) > 0.6 && Math.abs(Math.sin(x * 12.9898 + z * 78.233)) % 1 < 0.35;
+  plants.bushes.push({ x, y, z, s, ry: (x * 7 + z * 3) % 6.28, color: c, bloom, flower: ['#d0408a', '#e85a9c', '#f07a3a', '#e8e0d0'][Math.floor(Math.abs(x * 3 + z)) % 4] });
 }
 
 function dryShrub(x, z) {
   const y = groundHeight(x, z);
-  B.ball.add(x, y + 0.2, z, 0.5, 0.3, 0.5, pick(rng, ['#8f8150', '#7d6f45', '#9a8a58']));
+  plants.dry.push({ x, y, z, s: 0.75, ry: (x * 5 + z) % 6.28, color: pick(rng, ['#8f8150', '#7d6f45', '#9a8a58']) });
 }
 
 // ---------- Houses ----------
