@@ -175,6 +175,19 @@ const ROLE_BASE = {
 };
 const HAIRS = ['#1a1410', '#3a2618', '#6a4a2a', '#a87a3a', '#d9c08a', '#8a2a1a', '#e8e4dc', '#555555'];
 
+// Three.js skips drawing a body part when its bounding sphere is off screen. For skinned parts it
+// measures that sphere the first time it's needed, and by then the person stands somewhere in the city,
+// so the sphere came out in city coordinates and parts vanished depending on where you looked.
+// Measure while the person still stands at the origin, with room for arms and legs to swing.
+function fitBounds(group) {
+  group.updateMatrixWorld(true);
+  group.traverse(o => {
+    if (!o.isSkinnedMesh) return;
+    o.computeBoundingSphere();
+    o.boundingSphere.radius = Math.max(o.boundingSphere.radius * 1.6, o.boundingSphere.radius + 0.5);
+  });
+}
+
 // look (optional, from the character creator): { base, hair, hue } chosen instead of at random.
 export function makeCharacter({ race, role, height, girth, skin, look }, rng) {
   const base = look?.base || pickFrom(rng, ROLE_BASE[role] || ROLE_BASE.local);
@@ -228,6 +241,7 @@ export function makeCharacter({ race, role, height, girth, skin, look }, rng) {
     const gq = group.getWorldQuaternion(new THREE.Quaternion());
     heldGrip.grip.quaternion.copy(hq.invert().multiply(gq));
   }
+  fitBounds(group);
   let current = 'idle';
   const play = (name, fade = 0.25) => {
     if (name === current || !actions[name]) return;
@@ -253,6 +267,7 @@ export function makeStatue(scene, { x, y, z }, height = 4.6) {
   mixer.setTime(clip.duration * 0.3);
   obj.scale.setScalar(height / BODY_HEIGHT);
   obj.rotation.y = Math.PI;      // facing the sea, like the plaque
+  fitBounds(obj);
   obj.position.set(x, y, z);
   scene.add(obj);
   return obj;
