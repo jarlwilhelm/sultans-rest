@@ -13,6 +13,7 @@ export const LANDS = {
 // Base prices in gold. (Made up by Claude; change freely.)
 export const GOODS = {
   cabbage: { name: 'Cabbage', base: 3, from: 'the Sultanate', kind: 'food', color: '#7aa04a' },
+  lock:    { name: 'Iron lock', base: 12, from: 'Iron Peak', kind: 'craft', color: '#3a3a3c' },
   dates:   { name: 'Dates', base: 3, from: 'the Sultanate', kind: 'food', color: '#7a4a22' },
   cumin:   { name: 'Cumin', base: 5, from: 'the Sultanate', kind: 'spice', color: '#b5722e' },
   saffron: { name: 'Saffron', base: 19, from: 'the Sultanate', kind: 'spice', color: '#d9472a' },
@@ -34,7 +35,7 @@ export const GOODS = {
 export const STALL_KINDS = {
   spice:  { name: 'spice stall', goods: ['cumin', 'saffron', 'dates'] },
   cloth:  { name: 'cloth stall', goods: ['silk'] },
-  craft:  { name: 'crafts stall', goods: ['glass', 'tools', 'gears'] },
+  craft:  { name: 'crafts stall', goods: ['glass', 'tools', 'gears', 'lock'] },
   food:   { name: 'food stall', goods: ['dates', 'grain', 'rum'] },
   curio:  { name: 'curio stall', goods: ['charm', 'ink', 'moonleaf'] },
 };
@@ -114,6 +115,7 @@ export function sell(m, good, n) {
   if (!state.pack[good]) delete state.pack[good];
   state.gold += price * n;
   state.earned += price * n;
+  if (m.type === 'own') state.soldOwn = (state.soldOwn || 0) + n;     // (Chapter One: "sell three goods")
   const paid = state.paid?.[good];
   let profit = 0;
   if (paid && paid.n > 0) {

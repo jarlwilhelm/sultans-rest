@@ -5,6 +5,7 @@ import { makePerson } from '../people.js';
 import { footHeight } from '../land.js';
 import { state, atLevel } from './state.js';
 import { toast } from './ui.js';
+import { currentStep } from './quests.js';
 
 const SPOT = { x: -39.2, z: 69.3 };     // by Ale's table, inside the house
 
@@ -28,7 +29,9 @@ export function strangerWatch(scene, lookables) {
   return (dt, player) => {
     if (state.flags.metRedman && !him) return;
     if (!him) {
-      if (atLevel(7) && night()) spawn();           // the first night after you reach level 7
+      // The first night after you reach level 7 and own the Bigger Store (his step in the story).
+      const c = currentStep();
+      if (atLevel(7) && night() && c?.quest.id === 'noface2' && c.step.flag === 'metRedman') spawn();
       return;
     }
     const near = Math.hypot(player.x - SPOT.x, player.z - SPOT.z) < 7;

@@ -40,13 +40,13 @@ function page(title, lines, { w = 560, h = 720, hand = true } = {}) {
 }
 
 // A readable whose text depends on your level (and that can reveal a clue).
-function readableThing(scene, { x, y, z, w = 0.5, h = 0.35, ry = 0, title, flat = false, canvas: make, onRead, id }) {
+function readableThing(scene, { x, y, z, w = 0.5, h = 0.35, ry = 0, title, flat = false, canvas: make, onRead, id, when }) {
   const mat = new THREE.MeshStandardMaterial({ color: '#ead8b0', roughness: 0.9 });
   const m = new THREE.Mesh(flat ? new THREE.BoxGeometry(w, 0.04, h) : new THREE.PlaneGeometry(w, h), mat);
   m.position.set(x, y, z);
   if (!flat) m.rotation.y = ry + Math.PI;
   scene.add(m);
-  readables.push({ pos: m.position.clone(), title, get canvas() { return make(); }, onRead: () => { onRead?.(); if (id) questEvent('read', id); } });
+  readables.push({ pos: m.position.clone(), title, when, get canvas() { return make(); }, onRead: () => { onRead?.(); if (id) questEvent('read', id); } });
   return m;
 }
 
@@ -115,10 +115,10 @@ export function furnish(scene) {
   } else lamp(scene, a.x, a.top - 0.5, a.z, '#ffd38a', 1.4);
   // DRAFT: the ledger (grows as you level), a letter he never sent, a drawing.
   readableThing(scene, { x: a.x + 0.4, y: a.fy + 0.8, z: a.z + 0.2, w: 0.42, h: 0.3, flat: true, title: "Ale's ledger",
-    canvas: () => page("Ale's Ledger", [
+    canvas: () => state.flags.ledgerStolen ? page('The table', ['Bare wood, a ring where his cup stood. Someone took the ledger.'], { h: 260 }) : page("Ale's Ledger", [
       'Day 3: 40 cabbages sold. 6 spoiled. 4 to the tiefling pilots, no charge (they look hungry).',
       'Day 9: 52 sold. Rain. Mrs. Haddad says the cabbages are the best in the harbor. She says that every week.',
-      ...(level() >= 3 ? ['Day 14: 38 sold.', 'Paid: 40 g. R.   (in a different ink, pressed hard into the page)', 'Day 22: 44 sold. Paid: 40 g. R.'] : ['Day 14: 38 sold. A good week.']),
+      ...(level() >= 3 ? ['Day 14: 38 sold.', 'Paid: 40 g. R.   (in a different ink, pressed hard into the page)', 'Day 22: 44 sold. Paid: 40 g. R.', 'R. -- 40. Red sail, third bell.   (squeezed into the margin)'] : ['Day 14: 38 sold. A good week.']),
       ...(level() >= 6 ? ['The last page is torn out. You can see the marks of the pen on the page beneath: "...not the cabbages they want..."'] : []),
     ]),
     id: 'ledger' });
@@ -137,6 +137,31 @@ export function furnish(scene) {
     canvas: () => questState('package').step >= 1 || questState('package').done
       ? page('Behind the shelf', ['A board behind the shelf comes away in your hand. Behind it, a hollow in the wall, lined with oilcloth.', 'It is empty. In the dust, the clean outline of a small box, as if it was taken not long ago.'], { h: 360 })
       : page('Behind the shelf', ['Dust, a dead beetle, a lost button. Nothing else.'], { h: 260 }) });
+
+  // After the break-in (Chapter One, "The Package"): the house turned over, and three traces of who did it.
+  // Shown from the break-in until you fit a new lock (sneak.js switches it).
+  const mess = new THREE.Group();
+  mess.userData.keep = true;
+  scene.add(mess);
+  scene.userData.mess = mess;
+  const chair = prop(mess, 'Chair_1', a.x - 0.8, a.fy + 0.25, a.z + 0.6, { h: 0.95, ry: 0.7 });
+  if (chair) chair.rotation.z = Math.PI / 2;
+  for (const [bx, bz, r] of [[-1.6, -0.4, 0.3], [-1.2, 0.9, 1.4], [1.9, 0.6, 2.2], [0.3, -1.4, 0.8]]) prop(mess, 'Book1_Closed', a.x + bx, a.fy, a.z + bz, { h: 0.06, ry: r });
+  const paperMat = new THREE.MeshStandardMaterial({ color: '#ead8b0', roughness: 0.95, side: THREE.DoubleSide });
+  for (let i = 0; i < 14; i++) {
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.29), paperMat);
+    sheet.rotation.set(-Math.PI / 2, 0, i * 1.7);
+    sheet.position.set(a.x - 2 + (i * 0.97) % 4, a.fy + 0.012 + i * 0.001, a.z - 1.8 + (i * 1.31) % 3.6);
+    mess.add(sheet);
+  }
+  prop(mess, 'Chest_Closed', a.x + 2.6, a.fy, a.z - 0.6, { h: 0.5, ry: 2.2 });
+  const traces = () => state.flags.breakin && !state.flags.lockFitted;
+  readableThing(mess, { id: 'clay', x: a.x + 0.3, y: a.fy + 0.02, z: a.z0 + 0.9, w: 0.5, h: 0.3, flat: true, when: traces, title: 'Blue clay on the floor',
+    canvas: () => page('Bootprints', ['Wet blue clay, tracked from the door to the shelf and back. The kind they dredge from the harbor bottom.', 'Dock clay.'], { h: 300 }) });
+  readableThing(mess, { id: 'thread', x: a.x - 0.72, y: a.fy + 1.1, z: a.z0 + 0.04, w: 0.2, h: 0.3, ry: Math.PI, when: traces, title: 'A thread on the door frame',
+    canvas: () => page('A gray thread', ['Caught on a splinter of the door frame: a few threads of coarse gray wool. A coat, by the weight of it.'], { h: 300 }) });
+  readableThing(mess, { id: 'lockmarks', x: a.x + 0.52, y: a.fy + 1.05, z: a.z0 + 0.04, w: 0.2, h: 0.2, ry: Math.PI, when: traces, title: 'Scratches round the lock',
+    canvas: () => page('The lock', ['Fine, careful scratches round the keyhole. The lock was picked, not forced.', 'Whoever did this knew what they were doing.'], { h: 300 }) });
 
   // Picking cabbages in the garden: nine a day, regrowing each morning.
   const pick = { pos: new THREE.Vector3(-40, groundHeight(-40, 76.2) + 0.4, 76.2), title: "Ale's cabbages", verb: 'Pick a cabbage',

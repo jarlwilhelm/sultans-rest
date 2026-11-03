@@ -60,6 +60,8 @@
   .cbtn.on { border: 2px solid #7a1408; box-shadow: 0 0 0 2px #e7c35a; }
   @media (max-width: 820px) { .creator { flex-direction: column; align-items: center; } .cform { width: 100%; } }
   #tired { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(5,3,1,0.95) 85%); z-index: 2; }
+  #sneak { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); max-width: 70vw; text-align: center; background: rgba(20, 12, 4, 0.72); color: #f3e2b8; padding: 7px 16px; border-radius: 6px; border: 1px solid rgba(231, 195, 90, 0.45); font-family: 'IM Fell English', Georgia, serif; font-size: 18px; pointer-events: none; z-index: 5; }
+  #sneak.hidden { display: none; }
   #fade { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #050302; color: var(--sand); display: flex; align-items: center; justify-content: center; font-family: Cinzel, serif; font-size: 24px; letter-spacing: 0.08em; transition: opacity 0.9s; z-index: 9; }
   #fade.on { opacity: 1; }
   .wlist { display: grid; gap: 4px; }

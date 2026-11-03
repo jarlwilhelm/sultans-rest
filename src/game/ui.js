@@ -191,6 +191,13 @@ export async function journal() {
     for (const st of q.steps) {
       if (!st.done && !st.current) continue;
       box.append(el('div', 'stat' + (st.current ? ' prof' : ''), (st.done ? '✓ ' : '▸ ') + st.text));
+      if (st.current && st.revealedHint) box.append(el('p', 'small-note', st.revealedHint));
+      if (st.current && st.hidden) {
+        // A clue you work out yourself; asking around shows the way (and what people told you).
+        const ask = el('button', 'opt'); ask.append(el('span', 'num', '?'), el('span', '', 'Ask around (shows the way on your compass)'));
+        ask.onclick = async () => { const { askAround } = await import('./quests.js'); askAround(); closePanel(); journal(); };
+        box.append(ask);
+      }
     }
   }
   const close = el('button', 'opt leave'); close.append(el('span', 'num', 'J'), el('span', '', 'Close'));

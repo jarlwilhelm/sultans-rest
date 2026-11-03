@@ -83,10 +83,11 @@ export function readClue(id) {
 // Redman's words (DRAFT; what he says is yours to rewrite).
 export const REDMAN = [
   'A man in a plain cloak is standing by Ale\'s table, the ledger open in front of him, as if he had always been there. An ordinary face. You will forget it by morning. "Close the door," he says. "Sit, if you like. It was his house before it was yours."',
-  '"You sell cabbages like he did. Badly, and with a good heart." He smiles. "Your brother carried things for people who cannot be seen. Letters. Names. Sometimes warnings."',
-  '"Ale was part of something bigger than this harbor. Bigger than the Sultanate. He knew the risk. He took it anyway."',
-  '"I am not going to tell you who killed him. Not yet. Grow, merchant. Get yourself a ship. Then we will talk about what your brother started."',
-];
+  '"Your brother and I were friends. Good friends, for longer than you\'d guess. He carried things for people who cannot be seen. Letters. Names. Sometimes warnings."',
+  '"There was no fever. Ale was murdered." He lets that sit. "I don\'t know who did it. Not yet. But I will. I owe him that."',
+  '"The one who went through this house, the gray coat: a hired hand. He works for someone the docks call the Tallyman. Who the Tallyman is, or why he wanted your brother\'s ledger, I don\'t know either."',
+  '"Grow, merchant. Get yourself a ship. Then we\'ll talk about what your brother started."',
+]
 
 // The opening: your name and people, then the guild's letter.
 export async function intro() {

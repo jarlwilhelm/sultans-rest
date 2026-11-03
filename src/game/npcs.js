@@ -5,7 +5,7 @@ import { STALL_KINDS, GOODS } from './economy.js';
 import { talk, trade, rollCheck, toast, updateStatus, closePanel, askText, chapterEnd } from './ui.js';
 import { play } from '../minigames/index.js';
 import { REDMAN, shopTalk } from './story.js';
-import { questOption, questEvent, NAMED } from './quests.js';
+import { questOption, questEvent, NAMED, setPlayHelpers } from './quests.js';
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const leave = { label: 'Leave' };
@@ -22,12 +22,25 @@ function tally(name) {
 export function tableOpen(name) { const t = tally(name); return t.hands < TABLE_HANDS && t.net < TABLE_WIN; }
 function tableOpts(name) { const t = tally(name); return { gold: state.gold, handsLeft: TABLE_HANDS - t.hands, winRoom: TABLE_WIN - t.net }; }
 
+// Most a single run of each job can pay (early jobs pay pocket change, later ones much more).
+const PAY_CAP = { 'Market Run': 10, 'Cargo Hold': 10, 'Gull Patrol': 10, 'Glass Kiln': 35, 'Alley Chase': 70, 'Ward Keeper': 150 };
 async function runGame(name, opts, who) {
   closePanel(true);
   const gambling = name === 'Bones' || name === 'Twenty-One';
   const res = await play(name, gambling ? tableOpts(name) : opts);
   if (!res) return;
   if (gambling) { const t = tally(name); t.hands += res.hands || 0; t.net += res.gold || 0; }
+  else {
+    // Work pays by how advanced the job is (capped per run), takes an hour, and pays half from the third
+    // run of the same job in one day ("the quartermaster has less work for you"). docs/chapter-one-v2.md
+    const today = state.shifts?.day === state.day ? state.shifts : (state.shifts = { day: state.day, n: {} });
+    const n = today.n[name] = (today.n[name] || 0) + 1;
+    if (res.gold > 0) {
+      res.gold = Math.min(res.gold, PAY_CAP[name] ?? res.gold);
+      if (n >= 3) { res.gold = Math.floor(res.gold / 2); res.summary = (res.summary || '') + ' (Third shift today: half pay.)'; }
+    }
+    state.minute += 60; state.awake = (state.awake || 0) + 60;
+  }
   if (res.gold) { state.gold += res.gold; state.earned += res.gold; }
   if (res.renown) addRenown(res.renown, `${name}${res.score != null ? `, score ${res.score}` : ''}`);
   if (res.rep) for (const [k, v] of Object.entries(res.rep)) state.reputation[k] = (state.reputation[k] || 0) + v;
@@ -38,6 +51,7 @@ async function runGame(name, opts, who) {
   questEvent('game', { name, result: res });
   import('./items.js').then(m => m.checkSpecials(name, res));
   void who;
+  return res;
 }
 
 // ---------- Stallkeepers ----------
@@ -279,10 +293,10 @@ function named(npc) {
 // ---------- Redman (level 8) ----------
 // He tells you Ale was part of something bigger (story.js REDMAN; DRAFT lines).
 function stranger(npc) {
-  const text = [...REDMAN.slice(0, 3), '"He left one last letter. The pilots have it: the one with silver in her horns. Get it before someone else does, and take it to the Steward. Xi owes him that much."'];
+  const text = [...REDMAN, '"He left one last letter. The pilots have it: the one with silver in her horns. Get it before someone else does, and take it to the Steward. Xi owes him that much."'];
   return { name: 'A traveler in a plain cloak', text, options: [
     { label: '"Who are you?"', do: () => redmanEnd(npc, '"A friend of your brother\'s. That will have to do." He presses a coin into your palm. It has no face stamped on it.') },
-    { label: '"Who killed him?"', do: () => redmanEnd(npc, '"Not yet." He presses a coin into your palm. It has no face stamped on it.') },
+    { label: '"Who killed him?"', do: () => redmanEnd(npc, '"I don\'t know. Not yet. But I will. I owe him that." He presses a coin into your palm. It has no face stamped on it.') },
     { label: 'Look closer at him', hint: 'Perception, DC 20', do: async () => {
       const r = await rollCheck('Perception', 20);
       return redmanEnd(npc, r.success ? 'You try to fix his face in your memory. Brown eyes? Grey? It slides away like water.' : 'You blink, and he is three steps ahead, already part of the crowd.');
@@ -318,3 +332,10 @@ function questKey(npc) {
 }
 
 export { clock };
+
+// The story can send you to play a game for something (the barkeep's hand of Twenty-One).
+setPlayHelpers(() => closePanel(true), async (name, test, onWin, label, loseLine) => {
+  const res = await runGame(name, {});
+  if (res && test(res)) talk(onWin());
+  else talk({ name: label, text: [loseLine], options: [leave] });
+});

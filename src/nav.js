@@ -5,7 +5,7 @@
 // your right, which in this world is -x (so west is +x).
 import { colliders, PIERS, PALACE, CITY_WALL } from './land.js';
 import { state, level, nextRank, save } from './game/state.js';
-import { currentStep, NAMED, questEvent } from './game/quests.js';
+import { currentStep, NAMED, questEvent, gateText, inHours } from './game/quests.js';
 
 export const PLACES = [
   { id: 'house', name: "Ale's house", x: -40, z: 63, icon: 'house' },
@@ -26,7 +26,7 @@ export const PLACES = [
 ];
 const P = Object.fromEntries(PLACES.map(p => [p.id, p]));
 // Where story characters stand (for the compass).
-const NPC_AT = { inn: { x: -168, z: 22 }, guildmaster: { x: -110, z: 27 }, transmuter: { x: -145, z: 27 }, bounty: { x: 64, z: 27 }, steward: { x: 135, z: -36 } };
+const NPC_AT = { mariners: { x: -72, z: 12 }, inn: { x: -168, z: 22 }, guildmaster: { x: -110, z: 27 }, transmuter: { x: -145, z: 27 }, bounty: { x: 64, z: 27 }, steward: { x: 135, z: -36 } };
 
 // Your next goal, from where you are in the story.
 export function objective() {
@@ -35,8 +35,12 @@ export function objective() {
   const c = currentStep();
   if (c) {
     const s = c.step;
+    if (s.gate) return { text: gateText(s), ...P.merchants };
+    const when = s.hours && !inHours(s) ? ` (${s.hours[0]}:00 to ${s.hours[1]}:00 only)` : '';
+    // A clue you work out yourself: no marker until you "Ask around" in your journal.
+    if (s.hidden && !c.revealed) return { text: s.text + when + '  ·  no marker: J, then "Ask around" if you\'re stuck', x: null, z: null };
     const at = s.x != null ? s : s.npc && (NAMED[s.npc] || NPC_AT[s.npc]);
-    if (at) return { text: s.text, x: at.x, z: at.z };
+    if (at) return { text: s.text + when, x: at.x, z: at.z };
   }
   if (n && n.where === "the Merchants' Guild" && level() >= n.level && state.gold >= n.fee) return { text: `Buy the ${n.property}`, ...P.merchants };
   if (n && n.id === 'ship' && level() >= n.level && state.gold >= n.fee) return { text: 'Ask Xi for a ship', x: 135, z: -20 };
@@ -71,7 +75,7 @@ export function compass(root) {
     const rel = (x, z) => wrap(bearing(x - player.x, z - player.z) - facing);
     const dist = (x, z) => Math.round(Math.hypot(x - player.x, z - player.z));
     const o = objective();
-    place(goalPin, rel(o.x, o.z), `${dist(o.x, o.z)} m`);
+    if (o.x == null) goalPin.style.display = 'none'; else place(goalPin, rel(o.x, o.z), `${dist(o.x, o.z)} m`);
     goal.textContent = `Next: ${o.text}`;
     if (state.marker) place(markPin, rel(state.marker.x, state.marker.z), `${dist(state.marker.x, state.marker.z)} m`); else markPin.style.display = 'none';
     for (const [el, p] of [[housePin, P.house], [standPin, P.stand]]) {
@@ -147,7 +151,7 @@ export function openMap(player, onClose) {
     // Your next goal, your marker, you.
     const o = objective();
     g.fillStyle = '#e7c35a'; g.strokeStyle = '#6a3a10'; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(sx(o.x), sy(o.z) - 10); g.lineTo(sx(o.x) + 8, sy(o.z)); g.lineTo(sx(o.x), sy(o.z) + 10); g.lineTo(sx(o.x) - 8, sy(o.z)); g.closePath(); g.fill(); g.stroke();
+    if (o.x != null) { g.beginPath(); g.moveTo(sx(o.x), sy(o.z) - 10); g.lineTo(sx(o.x) + 8, sy(o.z)); g.lineTo(sx(o.x), sy(o.z) + 10); g.lineTo(sx(o.x) - 8, sy(o.z)); g.closePath(); g.fill(); g.stroke(); }
     if (state.marker) {
       const mx = sx(state.marker.x), my = sy(state.marker.z);
       g.fillStyle = '#b8382b'; g.beginPath(); g.moveTo(mx, my); g.lineTo(mx - 8, my - 16); g.lineTo(mx + 8, my - 16); g.closePath(); g.fill();

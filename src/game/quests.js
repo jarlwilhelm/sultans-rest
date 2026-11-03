@@ -1,7 +1,7 @@
 // The main quest of Chapter One, step by step, and the people in it.
 // Every line here is a DRAFT by Claude, written to fit the guide: rewrite freely.
-import { state, level, note, save, addRenown, nextRank } from './state.js';
-import { toast, updateStatus, rollCheck } from './ui.js';
+import { state, level, note, save, addRenown, nextRank, RANKS } from './state.js';
+import { toast, updateStatus, rollCheck, talk } from './ui.js';
 
 // People with names (where they stand is in buildings.js).
 export const NAMED = {
@@ -17,69 +17,73 @@ export const NAMED = {
     idle: ['"Everyone in this city owes me something. Except your brother. Odd man."', '"Interest is just patience with a price on it."'] },
 };
 
-// Quest steps: what to do (shown in the log and on the compass), where, and how it's done.
-// done by: { talk: npcKey } (a conversation option appears), { reach: true } (walk there),
-// { read: readableId }, { have: [good, n] }, { game: [name, test] }, { flag }.
+// Quest steps: what to do (shown in the log and on the compass), where, and how it's done. (docs/chapter-one-v2.md)
+// done by: { talk: npcKey } (a conversation option), { choices } (a conversation with several ways through),
+// { reach }, { read }, { reads: [ids] } (all of them), { have: [good, n] }, { sell: n } (at your own stand),
+// { game: [name, test] }, { flag }, { gate: rank } (own that property), { follow } / { overhear } (sneak.js).
+// hidden: no compass marker until you "Ask around" in your journal (hint says what asking turns up).
+// hours: [from, to]: it only happens then (24-hour clock).
+const RASHID_INFO = ['"Your brother? Borrow? Never. You have it backwards. He paid ME, to change coin for him. Forty gold a month, always in new palace coin."',
+  'He sets a coin on the table between you. It has no face stamped on it, only the Sultanate\'s seal. "Coin like this doesn\'t come from cabbages."'];
 export const QUESTS = [
   { id: 'cabbages', title: "Ale's Cabbages", level: 1, steps: [
     { text: "Visit Ale's house (east of the main avenue, blue door)", x: -40, z: 63, reach: true },
     { text: 'Read the letter on his shelf', x: -36.7, z: 69, read: 'unsent' },
-    { text: "Look over Ale's stand on the quay", x: -50, z: 15, reach: true },
-    { text: 'Talk to Mrs. Haddad by the stand', npc: 'haddad', talk: true, say: [
-      'An old woman with a market basket watches you look at the stand. "You\'re the sibling. Of course you are."',
-      '"Ale sold me three cabbages every week for nine years. Best in the harbor. I don\'t suppose... his garden will be going to seed by now."',
-      '"Bring me three from his garden, would you? Like he used to. It would mean something."'] },
-    { text: "Pick three cabbages in Ale's garden (behind his house)", x: -40, z: 76, have: ['cabbage', 3] },
-    { text: 'Bring the cabbages to Mrs. Haddad', npc: 'haddad', talk: true, take: ['cabbage', 3], gold: 12, xp: 12, say: [
+    { text: "Pick three cabbages in Ale's garden (out the back door)", x: -40, z: 76, have: ['cabbage', 3] },
+    { text: 'Open the stand on the quay: sell three goods to your customers', x: -50, z: 15, sell: 3 },
+    { text: 'Mrs. Haddad has been watching you sell. Talk to her', npc: 'haddad', talk: true, say: [
+      'An old woman with a market basket has been watching you all morning. "You\'re the sibling. Of course you are. You sell like him: too cheap."',
+      '"Ale sold me three cabbages every week for nine years. Best in the harbor. Bring me three from his garden, would you? Like he used to. It would mean something."'] },
+    { text: 'Bring Mrs. Haddad three cabbages from the garden', npc: 'haddad', talk: true, take: ['cabbage', 3], gold: 6, xp: 12, say: [
       'She turns a cabbage over in her hands for a long time. "He grew them just like this. Tight, heavy. A good heart grows a good cabbage, he said."',
       '"Keep the stand open. People will come. And they\'ll talk to you, the way they talked to him." She presses a few coins on you, and won\'t take them back.',
-      '(You can now sell at your stand: walk behind the counter and press E.)',
       'As you turn to go, she holds out a battered straw hat. "His. He left it at my house the week before. It should be yours."'], reward: 'hat:straw' },
   ] },
   { id: 'night', title: 'The Night Before', level: 2, steps: [
-    { text: 'Ask the barkeep of the Salted Kraken about Ale', npc: 'inn', talk: true, clue: 'inn', say: [
-      '"Ale? Quiet man. Kind. Always paid his tab." The barkeep wipes the same spot on the bar for a while.',
-      '"Funny thing. He was in here the night before the fever took him. Right as rain. Laughing, even. Fevers don\'t usually come on like that."'] },
-    { text: 'Ask Mrs. Haddad who Ale was with that night', npc: 'haddad', talk: true, say: [
-      '"That night? I saw him on the Grand Pier at dusk, talking with one of the tiefling pilots. The one with the silver rings in her horns."',
-      '"He looked worried. Ale never looked worried. Not about cabbages, anyway."'] },
-    { text: 'Find the pilot with silver rings on the Grand Pier', npc: 'nyra', talk: true, xp: 10, say: [
+    { text: 'Ask the barkeep of the Salted Kraken about Ale (he doesn\'t gossip for free)', npc: 'inn', choices: 'barkeep' },
+    { text: 'Find the pilot with silver rings in her horns. The pilots gather on the Grand Pier at dusk (6 to 9 pm)', npc: 'nyra', talk: true, hidden: true, hours: [18, 21],
+      hint: 'A sailor at the Kraken: "Silver rings? That\'s Nyra. End of the Grand Pier, when the sun goes down."', xp: 10, say: [
       'The pilot\'s eyes flick to your face and away. "Ale. Yes. I knew him." She goes back to checking her lantern.',
       '"I don\'t talk about my passengers, or my friends, to strangers. Come back when the harbor knows your name."'] },
+    { text: 'Two dockhands are whispering behind the crates at the foot of the Grand Pier. Get close without being seen, and listen', x: 9, z: 3.5, overhear: true, xp: 10 },
   ] },
   { id: 'forty', title: 'Forty Gold', level: 3, steps: [
+    { gate: 2, text: 'Buy the Small Store (deeds at the Merchants\' Guild)' },
     { text: "Read Ale's ledger, on the table in his house", x: -39.6, z: 68.2, read: 'ledger', clue: 'ledger' },
-    { text: 'Ask the Guildmaster who "R." might be (inside the Merchants\' Guild)', npc: 'guildmaster', talk: true, say: [
-      'The Guildmaster peers at the page. "R. Forty gold, regular as tides. In this city? Only one man lends like clockwork. Rashid. Up the main avenue."'] },
-    { text: 'Find Rashid the moneylender on the main avenue', npc: 'rashid', talk: true, xp: 15, say: [
-      '"Your brother? Borrow? Never. You have it backwards. He paid ME, to change coin for him. Forty gold a month, always in new palace coin."',
-      'He sets a coin on the table between you. It has no face stamped on it, only the Sultanate\'s seal. "Coin like this doesn\'t come from cabbages."'] },
+    { text: 'Who is "R."? Someone who lends money. Find him', npc: 'rashid', choices: 'rashid', hidden: true,
+      hint: 'The Guildmaster: "R.? Forty gold, regular as tides? Only one man lends like clockwork. Rashid, up the main avenue."' },
+    { text: '"Red sail, third bell." Be at the end of the Grand Pier in the morning (8 to 11 am), and follow whoever comes off that ship, unseen', x: 0, z: -46, follow: true, hours: [8, 11], xp: 20 },
   ] },
   { id: 'package', title: 'The Package', level: 4, steps: [
-    { text: 'Talk to the Master Transmuter (inside the Transmuters\' Guild)', npc: 'transmuter', talk: true, clue: 'transmuter', say: [
-      'The Master Transmuter studies your face. "You have his eyes. Did your brother leave anything with you? A package. Small. Heavy for its size."',
-      'You say no. "Then look. Behind things. Under things. He liked hiding places."'] },
-    { text: "Search Ale's house for a hiding place", x: -36.6, z: 69.5, read: 'hollow' },
-    { text: 'Tell the Master Transmuter what you found', npc: 'transmuter', talk: true, xp: 15, say: [
+    { text: 'The courier went into the Transmuters\' Guild. Talk to the Master Transmuter', npc: 'transmuter', choices: 'transmuter', clue: 'transmuter' },
+    { text: "Search Ale's house for a hiding place: behind things, under things", x: -36.6, z: 69.5, read: 'hollow', hidden: true,
+      hint: 'You remember Ale as a boy, hiding sweets behind the shelf where your mother never looked.' },
+    { text: 'Tell the Master Transmuter the hiding place was empty', npc: 'transmuter', talk: true, xp: 15, setFlag: 'breakin', say: [
       '"Empty." The Transmuter sets down their tongs. "Then someone got there before you. Someone who knew where to look."',
-      '"Be careful whose questions you answer. Including mine."'] },
+      '"And if they knew where to look, they know where you sleep. Be careful."'] },
+    { text: "Go home to Ale's house", x: -40, z: 66, reach: true, arrive: ['The blue door stands open. You left it shut.', 'Inside, the house has been turned over: drawers out, the chair on its back, papers everywhere. The ledger is gone from the table.'] },
+    { text: 'Look over the mess: whoever did this left three traces', x: -40, z: 66, reads: ['clay', 'thread', 'lockmarks'], xp: 15 },
+    { text: 'Buy a new lock (the crafts stalls in the market sell them)', x: 8, z: 19, have: ['lock', 1] },
+    { text: "Fit the new lock on Ale's front door", x: -40, z: 63.5, reach: true, take: ['lock', 1], setFlag: 'lockFitted', xp: 10,
+      arrive: ['You fit the new lock and turn the key twice. It is a small thing. It helps.'] },
   ] },
   { id: 'noface', title: 'No Face', level: 5, steps: [
-    { text: 'Talk to the bounty master (inside the Adventurers\' Guild)', npc: 'bounty', talk: true, clue: 'bounty', say: [
-      '"Ale came in here once. Didn\'t want work. Asked how a bounty gets paid when nobody knows the man\'s face."',
-      '"You want to know more? Earn it. Run down a pickpocket for me. Then we\'ll talk."'] },
-    { text: 'Catch a pickpocket in Alley Chase (ask the bounty master)', x: 64, z: 12, game: ['Alley Chase', r => r.caught > 0] },
-    { text: 'Collect from the bounty master', npc: 'bounty', talk: true, xp: 20, gold: 40, say: [
-      'He pulls a yellowed poster from a drawer. REDMAN RILLINGTON. No likeness. The reward is a tenth of what it is now.',
-      '"Twenty years old, that one. Look at the margin." In faded ink, in a hand you know from the ledger: "A. asked." Your brother wrote on it.'] },
+    { text: 'Ask the bounty master about a man in a gray coat with blue clay on his boots (Adventurers\' Guild)', npc: 'bounty', talk: true, clue: 'bounty', say: [
+      '"Gray coat, blue clay? Dock clay. That\'s one of the alley rats who work the market. Picks locks for hire."',
+      '"Your brother came in here once too. Didn\'t want work. Asked how a bounty gets paid when nobody knows the man\'s face." He shrugs. "Catch your rat and we\'ll talk."'] },
+    { text: 'Catch the man in the gray coat in the alleys (Alley Chase, at the bounty master)', x: 64, z: 12, game: ['Alley Chase', r => r.caught > 0] },
+    { text: 'You caught him. He has Ale\'s ledger. Decide what to do with him (the bounty master is waiting)', npc: 'bounty', choices: 'burglar' },
   ] },
   { id: 'third', title: 'Under the Third Row', level: 6, steps: [
-    { text: "Something about the garden wall bothers you. Look at the loose stone in Ale's garden", x: -36.8, z: 78.4, read: 'stone', clue: 'garden', xp: 15 },
+    { text: "Ale's letter said: \"Don't sell the third row, it's not ready yet.\" Look in the garden", x: -36.8, z: 78.4, read: 'stone', clue: 'garden', xp: 15, hidden: true,
+      hint: 'Re-reading the letter on his shelf, you notice the garden has exactly three rows. The third is the one by the wall.' },
   ] },
   { id: 'noface2', title: 'The Man With No Face', level: 7, steps: [
+    { gate: 3, text: 'Buy the Bigger Store (the town should know your name)' },
     { text: 'Go home to Ale\'s house after dark. Someone is waiting.', x: -40, z: 63, flag: 'metRedman', xp: 25 },
   ] },
   { id: 'letters', title: 'Sealed Letters', level: 8, steps: [
+    { gate: 4, text: 'Buy the Store Add-on (become a merchant of note)' },
     { text: 'Find Nyra, the pilot with silver in her horns, on the Grand Pier', npc: 'nyra', talk: true, say: [
       '"So he found you. Of course he did." Nyra looks out at the violet lights. "Ale paid me to carry letters through the wards. Sealed. No names."',
       '"I kept the last one. The kraken have been bad. Help me keep the wards lit for a night, and it\'s yours."'] },
@@ -94,10 +98,78 @@ export const QUESTS = [
   ] },
 ];
 
+// The conversations with choices (a step's `choices`). Each returns the panel to show; `done()` finishes the step.
+const CHOICES = {
+  barkeep: (label, done) => {
+    const info = () => { done(); return { name: label, text: [
+      '"Ale? Quiet man. Kind. Always paid his tab." He wipes the same spot on the bar for a while.',
+      '"He was in here the night before the fever took him. Right as rain. Laughing, even. Fevers don\'t come on like that."',
+      '"He left around dusk, with somebody off the pier. One of the pilots. Silver rings in her horns."'], options: [{ label: 'Leave' }] }; };
+    return { name: label, text: ['"Information\'s thirsty work," the barkeep says, not looking at you.'], options: [
+      { label: 'Buy a round for the bar', hint: '5 gold', disabled: state.gold < 5, do: () => { state.gold -= 5; updateStatus(); return info(); } },
+      { label: '"Play me for it." (a hand of Twenty-One)', hint: 'win one hand', do: () => { closePanelSoon(); playFor('Twenty-One', r => r.score > 0, info, label, 'He sweeps the cards up. "Come back when your luck does."'); return 'keep'; } },
+      { label: '"Ale was my brother."', hint: 'Persuasion, DC 12', do: async () => {
+        const r = await rollCheck('Persuasion', 12);
+        return r.success ? info() : { name: label, text: ['"Lot of people say they\'re somebody\'s brother." He turns away to serve someone else.'], options: [{ label: 'Leave' }] };
+      } },
+      { label: 'Leave' },
+    ] };
+  },
+  rashid: (label, done) => {
+    const info = (extra = []) => { done(); return { name: label, text: [...RASHID_INFO, ...extra], options: [{ label: 'Leave' }] }; };
+    return { name: label, text: ['The moneylender looks you over the way he looks at a coin. "Well?"'], options: [
+      { label: '"I\'m Ale\'s sibling. I want to know about his debts."', do: () => info() },
+      { label: '"Ale owed me money. I\'ve come to collect."', hint: 'Deception, DC 13', do: async () => {
+        const r = await rollCheck('Deception', 13);
+        if (r.success) return info(['He lowers his voice. "If he owed you, you\'d better ask the palace mint. That\'s the only place coin this new comes from."']);
+        state.flags.rashidWary = true; save();
+        return info(['"Don\'t lie to a moneylender. We can smell it." He tells you anyway, coldly, and you can tell he won\'t forget it.']);
+      } },
+      { label: 'Put 20 gold on his table: "for his memory"', hint: '20 gold', disabled: state.gold < 20, do: () => { state.gold -= 20; updateStatus(); return info(['He pockets the gold without counting it. "A pleasure."']); } },
+      { label: 'Leave' },
+    ] };
+  },
+  transmuter: (label, done) => ({ name: label, text: ['The Master Transmuter studies your face. "You have his eyes."'], options: [
+    { label: '"I followed a courier here off a red-sailed ship. What did he bring you?"', do: () => { state.flags.confrontedTransmuter = true; done(); return { name: label, text: [
+      'A long pause. "Glass. Only glass, this time." The Transmuter does not blink. "Your brother brought me things too. Small. Heavy for their size. I never opened one."',
+      '"He left something with you, I\'d wager. A package. Look. Behind things. Under things. He liked hiding places."'], options: [{ label: 'Leave' }] }; } },
+    { label: '"Did my brother leave anything with you?"', do: () => { done(); return { name: label, text: [
+      '"With me? No. But I think he meant to leave something with you. A package. Small. Heavy for its size."',
+      'You say no. "Then look. Behind things. Under things. He liked hiding places."'], options: [{ label: 'Leave' }] }; } },
+    { label: 'Leave' },
+  ] }),
+  burglar: (label, done) => {
+    const after = ['He pulls a yellowed poster from a drawer. REDMAN RILLINGTON. No likeness. The reward is a tenth of what it is now.',
+      '"Twenty years old, that one. Look at the margin." In faded ink, in a hand you know from the ledger: "A. asked." Your brother wrote on it.'];
+    return { name: label, text: ['The man in the gray coat sits on a crate, sullen, your brother\'s ledger in his lap. "Took it for a job. Nothing personal."'], options: [
+      { label: 'Turn him in to the guard', hint: 'the bounty: 60 gold', do: () => {
+        state.flags.burglarJailed = true; state.flags.ledgerStolen = false; state.gold += 60; state.earned += 60;
+        state.reputation.palace = (state.reputation.palace || 0) + 2; done();
+        return { name: label, text: ['The guard drags him off toward the palace cells. You get your brother\'s ledger back, and the bounty.', ...after], options: [{ label: 'Leave' }] };
+      } },
+      { label: '"Tell me who hired you, and you can go."', do: () => {
+        state.flags.burglarFree = true; state.flags.ledgerStolen = false; done();
+        return { name: label, text: ['He hands you the ledger. "A man paid me. Paid well. I never saw his face. Nobody does. The docks call him the Tallyman." Then he\'s gone, fast, the way you\'d expect.', ...after], options: [{ label: 'Leave' }] };
+      } },
+    ] };
+  },
+};
+
+// Play a game for something; on a win, the reward panel opens.
+let closePanelSoon = () => {};
+let playFor = () => {};
+export function setPlayHelpers(close, play) { closePanelSoon = close; playFor = play; }
+
 // ---------- State helpers ----------
 const qs = () => (state.quests ??= {});
 export const questState = (id) => qs()[id] || { step: 0, done: false };
 const Q = Object.fromEntries(QUESTS.map(q => [q.id, q]));
+// Saves from before the Chapter One rewrite: keep finished chapters, restart the one you were in.
+if (state.storyVersion !== 2) {
+  for (const s of Object.values(qs())) if (!s.done) { s.step = 0; s.seen = []; }
+  state.storyVersion = 2;
+  save();
+}
 
 // Quests you can work on right now (unlocked by level and by finishing the one before).
 export function activeQuests() {
@@ -116,44 +188,82 @@ export function currentStep() {
   const q = activeQuests()[0];
   if (!q) return null;
   const s = questState(q.id);
-  return { quest: q, step: q.steps[s.step], index: s.step };
+  return { quest: q, step: q.steps[s.step], index: s.step, revealed: s.reveal === s.step };
+}
+const hour = () => state.minute / 60;
+export const inHours = (st) => !st.hours || (hour() >= st.hours[0] && hour() < st.hours[1]);
+// The goal line for a gate step: how close you are to affording it.
+export function gateText(st) {
+  const r = RANKS[st.gate];
+  return `${st.text}: ${Math.min(state.gold, r.fee)} / ${r.fee} gold${level() < r.level ? `, level ${r.level}` : ''}`;
+}
+// "Ask around" (journal): shows the way to a hidden step, and what you heard.
+export function askAround() {
+  const c = currentStep();
+  if (!c || !c.step.hidden) return null;
+  const s = questState(c.quest.id); s.reveal = s.step; qs()[c.quest.id] = s; save();
+  return c.step.hint;
 }
 
-function advance(q, rewards = {}) {
+function advance(q) {
   const s = questState(q.id);
   const st = q.steps[s.step];
   if (st.xp) addRenown(st.xp, q.title);
   if (st.gold) { state.gold += st.gold; state.earned += st.gold; }
   if (st.clue && !state.clues.includes(st.clue)) state.clues.push(st.clue);
   if (st.letter) state.flags.letter = true;
+  if (st.setFlag) state.flags[st.setFlag] = true;
+  if (st.setFlag === 'breakin') state.flags.ledgerStolen = true;
   if (st.reward) import('./items.js').then(m => m.give(st.reward, q.title));
-  s.step++;
-  if (s.step >= q.steps.length) { s.done = true; note(`Finished: ${q.title}`); toast(`Quest complete: ${q.title}`, 5000); }
-  else toast(`${q.title}: ${q.steps[s.step].text}`, 5000);
+  if (st.arrive) talk({ name: q.title, text: st.arrive, options: [{ label: 'Go on' }] });
+  s.step++; s.seen = [];
+  if (s.step >= q.steps.length) { s.done = true; note(`Finished: ${q.title}`); toast(`Chapter complete: ${q.title}`, 5000); }
+  else toast(`${q.title}: ${q.steps[s.step].gate ? gateText(q.steps[s.step]) : q.steps[s.step].text}`, 6000);
   qs()[q.id] = s;
   save(); updateStatus();
-  void rewards;
 }
+export function finishStep() { const c = currentStep(); if (c) advance(c.quest); }
 
 // ---------- Events from the world ----------
 export function questEvent(type, data) {
   const c = currentStep();
   if (!c) return;
   const { quest, step } = c;
-  if (type === 'reach' && step.reach && Math.hypot(data.x - step.x, data.z - step.z) < 4) advance(quest);
+  if (step.hours && !inHours(step)) return;
+  const take = () => {
+    if (!step.take) return true;
+    if ((state.pack[step.take[0]] || 0) < step.take[1]) return false;
+    state.pack[step.take[0]] -= step.take[1]; if (!state.pack[step.take[0]]) delete state.pack[step.take[0]];
+    return true;
+  };
+  if (type === 'reach' && step.reach && Math.hypot(data.x - step.x, data.z - step.z) < 4) { if (take()) advance(quest); }
   else if (type === 'read' && step.read === data) advance(quest);
+  else if (type === 'read' && step.reads?.includes(data)) {
+    const s = questState(quest.id); s.seen = [...new Set([...(s.seen || []), data])]; qs()[quest.id] = s; save();
+    if (step.reads.every(r => s.seen.includes(r))) advance(quest);
+    else toast(`${s.seen.length} of ${step.reads.length} traces found`, 3000);
+  }
   else if (type === 'game' && step.game && step.game[0] === data.name && step.game[1](data.result || {})) advance(quest);
   else if (type === 'pack' && step.have && (state.pack[step.have[0]] || 0) >= step.have[1]) advance(quest);
+  else if (type === 'pack' && step.sell) {
+    const s = questState(quest.id);
+    if (s.soldFrom == null) { s.soldFrom = state.soldOwn || 0; qs()[quest.id] = s; save(); }    // count from when the step began
+    if ((state.soldOwn || 0) - s.soldFrom >= step.sell) advance(quest);
+  }
+  else if (type === 'pack' && step.gate && state.rank >= step.gate) advance(quest);
   else if (type === 'flag' && step.flag && state.flags[step.flag]) advance(quest);
+  else if (type === 'sneak' && (step.follow || step.overhear)) advance(quest);
 }
 
 // A conversation option for whoever the current step needs.
 export function questOption(npcKey, label) {
   const c = currentStep();
-  if (!c || !c.step.talk || c.step.npc !== npcKey) return null;
+  if (!c || c.step.npc !== npcKey || !(c.step.talk || c.step.choices)) return null;
   const { quest, step } = c;
+  if (!inHours(step)) return { label: `${quest.title}: (not now. ${step.hours[0] > 12 ? 'Come back at dusk' : 'Come back in the morning'})`, disabled: true };
   if (step.take && (state.pack[step.take[0]] || 0) < step.take[1]) return { label: `${quest.title}: (you need ${step.take[1]} ${step.take[0]}s)`, disabled: true };
   if (step.xiLetter) return { label: 'Give Xi your brother\'s letter', hint: quest.title, do: () => xiLetterScene(quest, label) };
+  if (step.choices) return { label: quest.title, hint: 'Your story', do: () => CHOICES[step.choices](label, () => advance(quest)) };
   return {
     label: quest.title, hint: 'Your story',
     do: () => {
@@ -192,12 +302,28 @@ function xiLetterScene(quest, label) {
   ], options: [{ label: 'Leave' }] };
 }
 
+// The palace gate, the first time: the guards want to know why you should be let in.
+export function palaceGate() {
+  const pass = (text) => { state.flags.palacePass = true; save(); return { name: 'The palace guards', text, options: [{ label: 'Go in (E at the gate)' }] }; };
+  const warn = state.flags.burglarFree ? ['Across the square, a man in a gray coat catches your eye and shakes his head, very slightly, before he melts into the crowd.'] : [];
+  return { name: 'The palace guards', text: ['Two guards cross their spears in front of the gate. "The Steward is not receiving. State your business."', ...warn], options: [
+    { label: 'Show your Merchants\' Guild papers', hint: state.rank >= 4 ? 'a merchant of note' : 'needs the Store Add-on', disabled: state.rank < 4,
+      do: () => pass(['They read your papers twice. "Merchant of note. Very well." The spears part.']) },
+    { label: 'Slip the guard 50 gold', hint: '50 gold', disabled: state.gold < 50, do: () => { state.gold -= 50; updateStatus(); return pass(['The coin disappears. So does the guard\'s interest in you. The spears part.']); } },
+    { label: '"Nyra of the pilots sent me."', hint: state.flags.letter ? 'you carry her letter' : 'you have nothing to show', disabled: !state.flags.letter,
+      do: () => pass(['At the pilot\'s name the older guard straightens. "The pilots keep the wards. Go in."']) },
+    { label: 'Leave' },
+  ] };
+}
+
 // For the journal (J).
 export function questLog() {
   return QUESTS.map(q => {
     const s = questState(q.id);
     const locked = level() < q.level;
-    return { title: q.title, level: q.level, done: s.done, locked, steps: q.steps.map((st, i) => ({ text: st.text, done: s.done || i < s.step, current: !s.done && i === s.step })) };
+    return { title: q.title, level: q.level, done: s.done, locked, steps: q.steps.map((st, i) => ({
+      text: st.gate ? gateText(st) : st.text, done: s.done || i < s.step, current: !s.done && i === s.step,
+      hidden: !!st.hidden && s.reveal !== i, revealedHint: st.hidden && s.reveal === i ? st.hint : null })) };
   });
 }
 

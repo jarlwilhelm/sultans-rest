@@ -24,6 +24,8 @@ import { compass, openMap } from './nav.js';
 import { loadProps, windowLight } from './interiors.js';
 import { scatterGround } from './land.js';
 import { fitWaitingHulls } from './ships.js';
+import { sneakWatch } from './game/sneak.js';
+import { palaceGate } from './game/quests.js';
 import { groundTime } from './look.js';
 import { sortScene, showPlace, roomAt, currentRoom, doorNear, useDoor, doorMoving, visibleDeep } from './rooms.js';
 import { intro } from './game/story.js';
@@ -102,6 +104,7 @@ async function main() {
   addEventListener('lavine:look', buildAvatar);
   const updateDaylight = daylight(scene, sky, renderer);
   const stranger = strangerWatch(scene, lookables);
+  const sneak = sneakWatch(scene);                 // following, overhearing, the watcher (game/sneak.js)
   sortScene(scene);                  // the city in one group, each room's things in its own (rooms.js)
   const roomLight = new THREE.PointLight('#ffcf8a', 0, 20, 2);
   scene.add(roomLight);
@@ -170,6 +173,7 @@ async function main() {
       else if (current.door) {
         const { door, side } = current.door;
         if (side === 'out' && level() < door.level) toast(`${door.name} opens at level ${door.level}.`);
+        else if (door.gate && side === 'out' && !state.flags.palacePass) { keys.clear(); talk(palaceGate()); }
         else { keys.clear(); useDoor(current.door, player); }
       }
     }
@@ -269,7 +273,7 @@ async function main() {
     let best = null, bestScore = 0;
     if (!talkable) for (const r of readables) {
       const d = r.pos.distanceTo(camera.position) - view.dist;
-      if (d > 4.5 || roomAt(r.pos.x, r.pos.y, r.pos.z) !== currentRoom()) continue;
+      if (d > 4.5 || (r.when && !r.when()) || roomAt(r.pos.x, r.pos.y, r.pos.z) !== currentRoom()) continue;
       const dir = r.pos.clone().sub(camera.position).normalize();
       const score = dir.dot(forward) - d * 0.02;
       if (dir.dot(forward) > 0.82 && score > bestScore) { best = r; bestScore = score; }
@@ -400,6 +404,7 @@ async function main() {
     updateProperty(wt);
     updatePeople(wt, wdt, player);
     stranger(wdt, player);
+    sneak(wdt, player);
     for (const [i, f] of flames.entries()) { const k = (f.userData.size || 1.6) * (1 + Math.sin(wt * 9 + i * 2) * 0.09 + Math.sin(wt * 23 + i) * 0.05); f.scale.set(k, k * 1.2, 1); }
     for (const [i, l] of (scene.userData.flickers || []).entries()) { l.userData.base ??= l.intensity; l.intensity = l.userData.base * (0.85 + Math.sin(wt * 11 + i) * 0.08 + Math.sin(wt * 27 + i * 3) * 0.07); }
 
@@ -428,7 +433,7 @@ async function main() {
   frame();
 
   // For checking from the browser console.
-  window.lavine = { player, scene, camera, state, fx, lookables };
+  window.lavine = { player, scene, camera, state, fx, lookables, sneak };
 }
 
 main().catch((err) => {

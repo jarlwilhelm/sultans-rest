@@ -48,7 +48,7 @@ export const SKILLS = {
 
 const KEY = 'lavine-sultans-rest-save-v2';
 const fresh = () => ({
-  gold: 25, pack: {}, rank: 1, renown: 0, reputation: { merchants: 0, mariners: 0, transmuters: 0, adventurers: 0, palace: 0 },
+  gold: 10, pack: {}, rank: 1, renown: 0, reputation: { merchants: 0, mariners: 0, transmuters: 0, adventurers: 0, palace: 0 },
   sheet: structuredClone(SHEET), day: 1, minute: 8 * 60, // 8:00 in the morning
   best: {}, played: {}, flags: {}, shopName: "Ale's Cabbages", log: [], spent: 0, earned: 0, haggled: {},
   name: null, race: null, clues: [],
