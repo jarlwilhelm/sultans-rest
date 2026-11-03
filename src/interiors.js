@@ -14,17 +14,48 @@ const PROPS = ['Lettuce_4', 'Lettuce_Harvested', 'Barrel', 'Crate', 'Bags', 'Ben
   'Apple_Harvested', 'Orange_Harvested', 'Carrot_4', 'Pumpkin_Harvested', 'Watermelon_Harvested', 'Tomato_Harvested', 'Mushroom_Harvested',
   'BushBerries_Harvested', 'Coconut_Half', 'Corn_Harvested', 'Potion1_Filled', 'Potion3_Filled', 'Potion6_Filled', 'Potion2_Empty', 'Chest_Closed',
   'Chest_Ingots', 'Chalice', 'Necklace1', 'Book1_Closed', 'Scroll', 'Pouch', 'Coin', 'Crystal1', 'Gold_Ingots', 'Pot', 'Pot_Small', 'Pan', 'WoodLog', 'Plate_1', 'Carpet_1', 'Carpet_2', 'Carpet_Round', 'Sword', 'Dagger', 'Crown2', 'Key1', 'Torch', 'Skull'];
+// Lavine's own models, built in Blender (tools/blender/*.py) at real size with materials named by what
+// they are; prop() dresses them in the city's own textured materials (see dress()).
+const LAVINE = ['tavern_room', 'tavern_tabletop', 'ale_room', 'guild_merchants', 'guild_transmuters', 'guild_adventurers'];
+const propDir = (n) => LAVINE.includes(n) ? 'assets/lavine' : 'assets/quaternius/props';
 const props = {};
 export async function loadProps() {
   const loader = new GLTFLoader();
-  await Promise.all(PROPS.map(async (n) => {
-    const g = await loader.loadAsync(`assets/quaternius/props/${n}.glb`);
+  await Promise.all([...PROPS, ...LAVINE].map(async (n) => {
+    const g = await loader.loadAsync(`${propDir(n)}/${n}.glb`);
     g.scene.updateMatrixWorld(true);
     const b = new THREE.Box3().setFromObject(g.scene);
-    props[n] = { scene: g.scene, box: b, size: b.getSize(new THREE.Vector3()) };
+    if (LAVINE.includes(n)) dress(g.scene);
+    props[n] = { scene: g.scene, box: b, size: b.getSize(new THREE.Vector3()), lavine: LAVINE.includes(n) };
   }));
 }
+
+// Materials by name -> the city's materials (shared, so a room of a thousand pieces stays cheap).
+export const DRESS = (() => {
+  const woodTex = (color, tile = 1.2) => { const m = surface('weathered_brown_planks', { tile, detail: 0.75 }); m.color.set(color); return m; };
+  const metal = (color, metalness, roughness) => new THREE.MeshStandardMaterial({ color, metalness, roughness });
+  const glass = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.08, transparent: true, opacity: 0.78, clearcoat: 1 });
+  const glow = (r, g, b) => new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b) });   // brighter than white: it glows
+  const stone = surface('sandstone_blocks_05', { tile: 1.4, detail: 0.75 }); stone.color.set('#d8c8a6');
+  return {
+    Wood: woodTex('#b58a5c'), DarkWood: woodTex('#6e4a2c'), Stone: stone,
+    Soot: new THREE.MeshStandardMaterial({ color: '#1a1512', roughness: 1 }),
+    Brass: metal('#d9a441', 0.9, 0.32), Iron: metal('#2c2b2b', 0.7, 0.55), Pewter: metal('#8e9196', 0.85, 0.38), Gold: metal('#e0b347', 0.95, 0.25),
+    GlassGreen: glass('#2f7a3a'), GlassBrown: glass('#7a3c12'), GlassClear: glass('#dfe8e0'), GlassBlue: glass('#2c5aa0'),
+    Wax: new THREE.MeshStandardMaterial({ color: '#efe2c0', roughness: 0.7 }),
+    Fire: glow(2.2, 1.3, 0.45), Ember: glow(1.8, 0.45, 0.12), Potion: glow(0.5, 1.6, 0.6),
+    Window: glow(1.2, 1.18, 1.05),        // daylight through the glass; main.js dims it at night (windowLight)
+  };
+})();
+function dress(root) {
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.material = DRESS[o.material.name] || Object.assign(o.material, { roughness: 0.85 });
+    o.castShadow = o.receiveShadow = true;
+  });
+}
 // Place a prop standing on y, sized so its height is `h` metres (or its longest side is `len`).
+// Lavine's own models keep their size and origin (they're built to fit where they go).
 export function prop(scene, name, x, y, z, { h, len, ry = 0, tint } = {}) {
   const p = props[name];
   if (!p) return null;
@@ -32,7 +63,7 @@ export function prop(scene, name, x, y, z, { h, len, ry = 0, tint } = {}) {
   const s = h ? h / p.size.y : len ? len / Math.max(p.size.x, p.size.z) : 1;
   const wrap = new THREE.Group();
   o.scale.multiplyScalar(s);
-  o.position.set(-(p.box.min.x + p.size.x / 2) * s, -p.box.min.y * s, -(p.box.min.z + p.size.z / 2) * s);
+  if (!p.lavine) o.position.set(-(p.box.min.x + p.size.x / 2) * s, -p.box.min.y * s, -(p.box.min.z + p.size.z / 2) * s);
   wrap.add(o);
   wrap.position.set(x, y, z);
   wrap.rotation.y = ry;
@@ -40,6 +71,7 @@ export function prop(scene, name, x, y, z, { h, len, ry = 0, tint } = {}) {
     if (!m.isMesh) return;
     m.castShadow = m.receiveShadow = true;
     if (tint) { m.material = m.material.clone(); m.material.color.multiply(new THREE.Color(tint)); }
+    if (p.lavine) m.castShadow = m.material !== DRESS.Fire && m.material !== DRESS.Ember;
   });
   scene.add(wrap);
   return wrap;
@@ -129,7 +161,7 @@ export function hollow(scene, { x, z, w, d, h, color = '#efe4cf', doorW = 1.6, d
 const glowTex = new THREE.CanvasTexture(glowTextureCanvas());
 export function lamp(scene, x, y, z, color = '#ffd38a', size = 1.6) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  s.position.set(x, y, z); s.scale.set(size, size, 1);
+  s.position.set(x, y, z); s.scale.set(size, size, 1); s.userData.size = size;
   scene.add(s);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), new THREE.MeshBasicMaterial({ color }));
   bulb.position.set(x, y, z); scene.add(bulb);
@@ -138,6 +170,15 @@ export function lamp(scene, x, y, z, color = '#ffd38a', size = 1.6) {
 }
 
 export { wood, placeReadable, signBoard, readables };
+
+// Indoor windows show the time of day: bright sky by day, deep blue at night (minute = minutes past midnight).
+const DAY = new THREE.Color(1.2, 1.18, 1.05), NIGHT = new THREE.Color(0.05, 0.07, 0.16), DUSK = new THREE.Color(1.1, 0.6, 0.35);
+export function windowLight(minute) {
+  const h = minute / 60, s = (a, b, x) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+  const day = s(5.5, 7.5, h) * (1 - s(18.5, 20.5, h));
+  const dusk = Math.max(0, 1 - Math.abs(h - 19.2) / 1.2) + Math.max(0, 1 - Math.abs(h - 6.3) / 1.0);
+  DRESS.Window.color.copy(NIGHT).lerp(DAY, day).lerp(DUSK, Math.min(0.5, dusk * 0.5));
+}
 
 // Switch a shell's walls solid or not (for buildings that are only sometimes there, like your plot's).
 export function setShellActive(shell, on) {

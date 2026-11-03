@@ -21,7 +21,7 @@ import { buildProperty } from './property.js';
 import { buildAlesHouse, furnish, lockPalace } from './buildings.js';
 import { placeGoods } from './goods.js';
 import { compass, openMap } from './nav.js';
-import { loadProps } from './interiors.js';
+import { loadProps, windowLight } from './interiors.js';
 import { scatterGround } from './land.js';
 import { groundTime } from './look.js';
 import { sortScene, showPlace, roomAt, currentRoom, doorNear, useDoor, doorMoving, visibleDeep } from './rooms.js';
@@ -102,6 +102,8 @@ async function main() {
   const updateDaylight = daylight(scene, sky, renderer);
   const stranger = strangerWatch(scene, lookables);
   sortScene(scene);                  // the city in one group, each room's things in its own (rooms.js)
+  const roomLight = new THREE.PointLight('#ffcf8a', 0, 20, 2);
+  scene.add(roomLight);
 
   // ---------- The player ----------
   // Start at the end of the Grand Pier, looking back at the city.
@@ -377,8 +379,17 @@ async function main() {
     // Which place you're in: inside a room only that room is drawn; outside, the city.
     const here = roomAt(player.x, player.y - 1.6, player.z);
     if (here !== currentRoom()) showPlace(here);
+    // One warm light that follows you indoors (candles and lamps), stronger at night when no daylight comes in.
+    if (here) {
+      const s = here.shell, h = state.minute / 60;
+      const day = Math.min(1, Math.max(0, (h - 5.5) / 2)) * (1 - Math.min(1, Math.max(0, (h - 18.5) / 2)));
+      roomLight.position.set(s.x, s.fy + Math.min((s.top - s.fy) * 0.7, 6), s.z);
+      roomLight.distance = Math.max(s.w, s.d) * 1.3;
+      roomLight.intensity = 0.22 * s.w * s.d * (1 - 0.6 * day);
+    } else roomLight.intensity = 0;
 
     updateDaylight(state.minute);
+    windowLight(state.minute);
     followSun(camera.position);
     updateWater(wt, camera.position);
     groundTime.value = wt;
@@ -388,7 +399,8 @@ async function main() {
     updateProperty(wt);
     updatePeople(wt, wdt, player);
     stranger(wdt, player);
-    for (const [i, f] of flames.entries()) { const k = 1.6 + Math.sin(wt * 9 + i * 2) * 0.15 + Math.sin(wt * 23 + i) * 0.08; f.scale.set(k, k * 1.2, 1); }
+    for (const [i, f] of flames.entries()) { const k = (f.userData.size || 1.6) * (1 + Math.sin(wt * 9 + i * 2) * 0.09 + Math.sin(wt * 23 + i) * 0.05); f.scale.set(k, k * 1.2, 1); }
+    for (const [i, l] of (scene.userData.flickers || []).entries()) { l.userData.base ??= l.intensity; l.intensity = l.userData.base * (0.85 + Math.sin(wt * 11 + i) * 0.08 + Math.sin(wt * 27 + i * 3) * 0.07); }
 
     const nearWater = Math.max(0, 1 - Math.max(0, player.z) / 90);
     const busyArea = Math.max(0, 1 - Math.abs(player.z - 15) / 70) * (Math.abs(player.x) < 180 ? 1 : 0.3);

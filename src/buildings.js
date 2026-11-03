@@ -102,7 +102,17 @@ export function furnish(scene) {
     prop(scene, 'Lettuce_Harvested', cx, a.fy + 0.6, cz, { h: 0.3 });
   }
   prop(scene, 'Houseplant_2', a.x1 - 0.5, a.fy, a.z1 - 0.5, { h: 0.9 });
-  lamp(scene, a.x, a.top - 0.5, a.z, '#ffd38a', 1.4);
+  // The lived-in layer from Blender (tools/blender/ale.py): hearth, herbs, pegs, garden tools, washstand, lantern.
+  if (prop(scene, 'ale_room', a.x, a.fy, a.z)) {
+    const block = (x0, x1, z0, z1) => colliders.push({ x0: a.x + x0, x1: a.x + x1, z0: a.z + z0, z1: a.z + z1 });
+    block(1.0, 3.2, 2.45, 3.2);          // the hearth and the firewood
+    block(3.05, 3.7, -0.45, 0.45);       // the washstand
+    block(1.0, 2.25, -3.2, -2.3);        // the basket and the sack
+    lamp(scene, a.x + 1.75, a.fy + 0.4, a.z + 2.8, '#ff8a2a', 1.6);
+    lamp(scene, a.x + 0.4, a.fy + 2.2, a.z + 0.2, '#ffd38a', 1.2);
+    const fire = new THREE.PointLight('#ff9a4a', 5, 7, 2); fire.position.set(a.x + 1.75, a.fy + 0.7, a.z + 2.4); scene.add(fire);
+    (scene.userData.flickers ??= []).push(fire);
+  } else lamp(scene, a.x, a.top - 0.5, a.z, '#ffd38a', 1.4);
   // DRAFT: the ledger (grows as you level), a letter he never sent, a drawing.
   readableThing(scene, { x: a.x + 0.4, y: a.fy + 0.8, z: a.z + 0.2, w: 0.42, h: 0.3, flat: true, title: "Ale's ledger",
     canvas: () => page("Ale's Ledger", [
@@ -158,20 +168,41 @@ export function furnish(scene) {
   // People with names in the story (quests.js).
   for (const [id, n] of Object.entries(NAMED)) posts.push({ x: n.x, z: n.z, ry: n.ry, role: n.role, race: n.race, label: n.title, npc: { kind: 'named', id } });
 
-  // The Salted Kraken.
+  // The Salted Kraken: its insides are one Blender model (tools/blender/tavern.py), built around the
+  // room's centre; offsets below are from the centre (x across, z toward the back wall).
   const t = S.tavern;
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.1, 0.8), wood); bar.position.set(t.x, t.fy + 0.55, t.z1 - 2.2); bar.castShadow = true; scene.add(bar);
-  colliders.push({ x0: t.x - 3.25, x1: t.x + 3.25, z0: t.z1 - 2.6, z1: t.z1 - 1.8 });
-  for (let i = 0; i < 4; i++) prop(scene, 'Barrel', t.x - 3 + i * 2, t.fy, t.z1 - 0.6, { h: 1.0 });
-  prop(scene, 'Shelf_Large', t.x0 + 0.4, t.fy, t.z1 - 1.5, { h: 2.0, ry: Math.PI / 2 });
+  if (prop(scene, 'tavern_room', t.x, t.fy, t.z)) {
+    const block = (x0, x1, z0, z1) => colliders.push({ x0: t.x + x0, x1: t.x + x1, z0: t.z + z0, z1: t.z + z1 });
+    block(-3.3, 3.3, 3.5, 4.4);          // the bar
+    block(-3.8, 3.8, 5.65, 6.2);         // the back bar
+    block(-5.2, -4.05, 4.2, 6.2);        // the casks
+    block(-5.2, -3.85, -1.6, 1.6);       // the fireplace
+    block(4.0, 5.2, -3.0, 4.9);          // the stairs and the landing
+    block(-5.2, -4.35, -6.2, -5.15);     // the anchor
+    // Glow for the fire, the chandelier's candles and the lanterns; real light from the fire and the chandelier.
+    lamp(scene, t.x - 4.6, t.fy + 0.6, t.z, '#ff8a2a', 3.2);
+    lamp(scene, t.x, t.fy + 3.85, t.z - 1.0, '#ffc46b', 2.6);
+    for (const [lx, lz] of [[-4.73, 3.0], [-4.73, -3.2], [4.73, -4.6]]) lamp(scene, t.x + lx, t.fy + 2.4, t.z + lz, '#ffc46b', 1.1);
+    const fire = new THREE.PointLight('#ff9a4a', 14, 11, 2); fire.position.set(t.x - 4.3, t.fy + 0.9, t.z); scene.add(fire);
+    const hall = new THREE.PointLight('#ffcf8a', 10, 13, 2); hall.position.set(t.x, t.fy + 3.6, t.z - 1.0); scene.add(hall);
+    (scene.userData.flickers ??= []).push(fire);
+    placeReadable(scene, signBoard('THE SALTED KRAKEN', 'Ale · Rum · Beds upstairs', { bg: '#1f3a4a', fg: '#e7c35a' }), {
+      x: t.x, y: t.fy + 3.62, z: t.z + 5.85, w: 3.2, h: 0.8, title: 'The Salted Kraken',
+    });
+  }
   for (const [tx, tz] of [[t.x - 2.6, t.z0 + 2.2], [t.x + 2.6, t.z0 + 2.2], [t.x - 2.4, t.z + 0.6]]) {
     prop(scene, 'Table_RoundSmall', tx, t.fy, tz, { h: 0.8 });
+    prop(scene, 'tavern_tabletop', tx, t.fy + 0.8, tz, { ry: tx * 1.7 });
     colliders.push({ x0: tx - 0.5, x1: tx + 0.5, z0: tz - 0.5, z1: tz + 0.5 });
     for (const [sx, sz] of [[0.9, 0], [-0.9, 0]]) prop(scene, 'Stool', tx + sx, t.fy, tz + sz, { h: 0.5 });
   }
-  lamp(scene, t.x - 2, t.top - 0.6, t.z, '#ffbf6a', 1.6); lamp(scene, t.x + 2, t.top - 0.6, t.z - 2, '#ffbf6a', 1.6);
+  prop(scene, 'Carpet_Round', t.x + 0.3, t.fy + 0.01, t.z - 1.0, { len: 3.2 });
+  for (const bx of [-3, 2.6]) {
+    prop(scene, 'Bench_1', t.x + bx, t.fy, t.z0 + 0.55, { len: 1.8 });
+    colliders.push({ x0: t.x + bx - 0.9, x1: t.x + bx + 0.9, z0: t.z0, z1: t.z0 + 0.8 });
+  }
   posts.push(
-    { x: t.x, z: t.z1 - 1.3, ry: 0, role: 'local', label: 'Barkeep of the Salted Kraken', npc: { kind: 'inn' } },
+    { x: t.x, z: t.z1 - 1.3, ry: 0, role: 'local', race: 'human', label: 'Barkeep of the Salted Kraken', npc: { kind: 'inn' } },
     { x: t.x - 2.6 + 0.9, z: t.z0 + 2.2, ry: Math.PI / 2, role: 'sailor', sit: true, label: 'Sailor playing Bones', npc: { kind: 'bones' } },
     { x: t.x + 2.6 - 0.9, z: t.z0 + 2.2, ry: -Math.PI / 2, role: 'adventurer', sit: true, label: 'Adventurer, telling a tall tale' },
   );
@@ -186,7 +217,10 @@ export function furnish(scene) {
   carpet.position.set(m.x, m.fy + 0.02, (m.z0 + m.z1) / 2 - 1.5); scene.add(carpet);
   for (const sx of [-4, 4]) prop(scene, 'Bench_1', m.x + sx, m.fy, m.z, { len: 2.2 });
   for (const sx of [-6, 0, 6]) lamp(scene, m.x + sx, m.top - 1.5, m.z, '#ffd38a', 2);
-  posts.push({ x: m.x, z: m.z1 - 1.8, ry: 0, role: 'merchant', label: "Guildmaster of the Merchants' Guild", npc: { kind: 'guild', guild: 'merchants' } });
+  posts.push({ x: m.x, z: m.z1 - 1.8, ry: 0, role: 'merchant', race: 'elf', label: "Guildmaster of the Merchants' Guild", npc: { kind: 'guild', guild: 'merchants' } });
+
+  // The hall itself from Blender (tools/blender/guilds.py): columns, windows, chandeliers, banners and the guild's own things.
+  hallDressing(scene, m, 'guild_merchants', [[3.65, 4.75, 4.3, 5.0], [-4.75, -3.65, 4.3, 5.0], [8.9, 11.1, -7.7, -6.2], [-11.1, -8.9, -7.7, -6.2]]);
 
   // The Transmuters' workshop: a kiln that glows, glass on the tables.
   const w = S.transmuters;
@@ -202,7 +236,10 @@ export function furnish(scene) {
     for (let i = 0; i < 4; i++) prop(scene, ['Potion2_Empty', 'Crystal1', 'Potion6_Filled', 'Gold_Ingots'][i], w.x + tx - 0.45 + i * 0.3, w.fy + 0.85, w.z + (i % 2 ? 0.2 : -0.2), { h: [0.3, 0.28, 0.3, 0.12][i], ry: i });
   }
   for (let i = 0; i < 4; i++) prop(scene, 'Shelf_Large', w.x0 + 0.4, w.fy, w.z0 + 2 + i * 3, { h: 2.2, ry: Math.PI / 2 });
-  posts.push({ x: w.x + 3, z: w.z1 - 1.6, ry: 0, role: 'scribe', label: 'Master Transmuter', npc: { kind: 'guild', guild: 'transmuters' } });
+  posts.push({ x: w.x + 3, z: w.z1 - 1.6, ry: 0, role: 'scribe', race: 'tiefling', label: 'Master Transmuter', npc: { kind: 'guild', guild: 'transmuters' } });
+
+  // The hall itself from Blender (tools/blender/guilds.py): columns, windows, chandeliers, banners and the guild's own things.
+  hallDressing(scene, w, 'guild_transmuters', [[2.75, 8.85, 6.6, 7.7], [-5.45, -3.55, -3.45, -1.55], [4.1, 4.9, -2.9, -2.1]]);
 
   // The Adventurers' Guild: every bounty on the back wall, benches, people.
   const ad = S.adventurers;
@@ -215,8 +252,55 @@ export function furnish(scene) {
   posts.push(
     { x: ad.x - 6 + 1.3, z: ad.z - 2, ry: Math.PI / 2, role: 'adventurer', sit: true, label: 'Adventurer, sharpening a blade' },
     { x: ad.x + 6 - 1.3, z: ad.z + 2, ry: -Math.PI / 2, role: 'adventurer', sit: true, label: 'Adventurer, counting coins' },
-    { x: ad.x, z: ad.z1 - 2, ry: 0, role: 'adventurer', label: "Bounty master of the Adventurers' Guild", npc: { kind: 'guild', guild: 'adventurers' } },
+    { x: ad.x, z: ad.z1 - 2, ry: 0, role: 'adventurer', race: 'orc', label: "Bounty master of the Adventurers' Guild", npc: { kind: 'guild', guild: 'adventurers' } },
   );
+
+  // The hall itself from Blender (tools/blender/guilds.py): columns, windows, chandeliers, banners and the guild's own things.
+  hallDressing(scene, ad, 'guild_adventurers', [[12.0, 12.7, -6.95, -4.65], [12.0, 12.7, 4.65, 6.95], [-12.7, -12.0, -6.95, -4.65], [-12.7, -12.0, 4.65, 6.95], [-4.95, -4.05, -5.25, -4.35], [3.3, 5.7, -5.5, -4.1]]);
+}
+
+// The map in the Merchants' Guild: sea routes from Sultan's Rest to the lands whose ships tie up at the piers.
+// (Not a map of Lavine's coasts: only routes and names, so it can't contradict the real map.)
+function tradeMap() {
+  const c = document.createElement('canvas'); c.width = 1200; c.height = 630;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e4d3a6'; g.fillRect(0, 0, 1200, 630);
+  for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(110,70,30,${Math.random() * 0.06})`; g.fillRect(Math.random() * 1200, Math.random() * 630, 3, 3); }
+  const edge = g.createRadialGradient(600, 315, 200, 600, 315, 700); edge.addColorStop(0, 'rgba(90,50,20,0)'); edge.addColorStop(1, 'rgba(90,50,20,0.45)');
+  g.fillStyle = edge; g.fillRect(0, 0, 1200, 630);
+  g.fillStyle = '#3a200c'; g.textAlign = 'center';
+  g.font = 'bold 40px Cinzel, Georgia, serif'; g.fillText('TRADE ROUTES FROM SULTAN\'S REST', 600, 62);
+  g.font = 'italic 20px "IM Fell English", Georgia, serif'; g.fillText('By sea, through the warded passage. Distances not to scale.', 600, 92);
+  const lands = ['the Coastal Republic of Meridia', 'Eldoria', 'Sylvenwood', 'Iron Peak', 'the Dreadfort of Ebony Desolation',
+    'the Vampiric Dominion', 'the Dezfulian Empire', 'Solitude Haven', 'the Tiefling Harbors'];
+  const hx = 600, hy = 380;
+  lands.forEach((name, i) => {
+    const a = Math.PI * (1.08 + i * 0.84 / (lands.length - 1)) * 1, r = 270 + (i % 2) * 40;
+    const x = hx + Math.cos(a + Math.PI * 0) * r * 1.5, y = hy + Math.sin(a) * r * 0.85 + 30;
+    g.strokeStyle = 'rgba(122,42,28,0.8)'; g.lineWidth = 3; g.setLineDash([12, 9]);
+    g.beginPath(); g.moveTo(hx, hy); g.quadraticCurveTo((hx + x) / 2 + (i - 4) * 18, (hy + y) / 2 + 60, x, y); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#7a2a1c'; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#2b1606'; g.font = '22px "IM Fell English", Georgia, serif'; g.fillText(name, x, y - 16);
+  });
+  g.fillStyle = '#2f9c9a'; g.beginPath(); g.arc(hx, hy, 14, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#2b1606'; g.font = 'bold 26px Cinzel, Georgia, serif'; g.fillText('Sultan\'s Rest', hx, hy + 44);
+  // A compass rose in the corner.
+  g.save(); g.translate(1080, 520); g.strokeStyle = '#3a200c'; g.fillStyle = '#3a200c'; g.lineWidth = 2;
+  g.beginPath(); g.arc(0, 0, 48, 0, Math.PI * 2); g.stroke();
+  for (let i = 0; i < 4; i++) { g.rotate(Math.PI / 2); g.beginPath(); g.moveTo(0, -58); g.lineTo(9, 0); g.lineTo(-9, 0); g.closePath(); g.fill(); }
+  g.restore(); g.font = 'bold 22px Cinzel, Georgia, serif'; g.fillText('N', 1080, 448);
+  return c;
+}
+
+// The Blender dressing of a guild hall, placed at its centre, plus what you bump into and the lights.
+function hallDressing(scene, h, model, blocks) {
+  if (!prop(scene, model, h.x, h.fy, h.z)) return;
+  const block = (x0, x1, z0, z1) => colliders.push({ x0: h.x + x0, x1: h.x + x1, z0: h.z + z0, z1: h.z + z1 });
+  for (const x of [-8, 8]) for (const z of [-4.5, 0, 4.5]) block(x - 0.55, x + 0.55, z - 0.55, z + 0.55);   // the columns
+  for (const b of blocks) block(...b);
+  for (const x of [-5, 5]) lamp(scene, h.x + x, h.fy + 6.45, h.z, '#ffc46b', 3.2);                         // the chandeliers
+  if (model === 'guild_transmuters') lamp(scene, h.x - 4.5, h.fy + 1.1, h.z - 2.5, '#7dff9a', 2.4);         // the cauldron
+  if (model === 'guild_merchants') placeReadable(scene, tradeMap(), { x: h.x, y: h.fy + 5.0, z: h.z + 7.5, w: 5.9, h: 3.1, title: 'Trade routes from Sultan\'s Rest' });
 }
 
 // ---------- The palace gate: shut until level 8, then E takes you through ----------
