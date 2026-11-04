@@ -34,6 +34,7 @@ export async function voyage(to, { pay = CREW_PAY } = {}) {
   if (kept > 0) { state.gold += kept; state.earned = (state.earned || 0) + kept; note(`"${state.shopName}" took ${kept} gold while you were at sea`); }
   const { checkContracts } = await import('./game/contracts.js');
   checkContracts();
+  (await import('./game/invest.js')).settleInvestments();
   note(`Sailed to ${PLACE_NAMES[to]} (${VOYAGE_DAYS} days along the coast${pay ? `, ${pay} gold for the crew` : ''})`);
   save();
   return kept;

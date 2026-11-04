@@ -43,9 +43,8 @@ export const QUESTS_2 = [
   { id: 'm_pass', title: 'The Forged Pass', level: 14, place: 'meridia', steps: [
     { text: 'The Hill is closed to you. Ask at the Gilded Gull for a gentleman of letters', npc: 'forger', choices: 'forger', xp: 15 },
     { text: 'At night, get into the Customs House on the quay and press its seal into your wax (9 pm to 4 am)', game: ['The Customs House', (r) => !!r.sealed], x: 88, z: 42, xp: 60 },
-    { text: 'Bring the seal impression back to Ellorin Vane at the Gilded Gull', npc: 'forger', talk: true, gold: 300, setFlag: 'innerPass', xp: 30, sides: { redman: 1 }, say: [
-      'Ellorin holds the wax to the lamp, and smiles for the first time. "Clean. Lovely." Two days later you have a pass with the Republic\'s seal on it, and three hundred gold for your trouble.',
-      '"Don\'t thank me," he says. "Thank our mutual friend. He told me you\'d manage."'] },
+    // His fee is a money goal (2026-11-04, the user: reasons to make money): 2,000 gold for a pass to the Hill.
+    { text: 'Bring the seal impression back to Ellorin Vane at the Gilded Gull, and his fee: 2,000 gold', npc: 'forger', choices: 'forger2', setFlag: 'innerPass', xp: 30, sides: { redman: 1 } },
   ] },
   { id: 'm_speaker', title: 'The Speaker', level: 15, place: 'meridia', steps: [
     { text: 'Show your pass at the Inner Gate and go up the Hill', reach: true, x: 0, z: 202, xp: 20 },
@@ -102,6 +101,13 @@ export const CHOICES_2 = {
     'In the best corner of the Gilded Gull sits a short elf in a coat that cost more than your ship\'s sails, reading poetry with the air of a man who has written better. "Ellorin Vane. Letters, mostly. Papers, occasionally."',
     '"A pass to the Hill? I can make you one so good the Captain of the Inner Gate will apologise for doubting it. But a pass needs a seal, and the seals live in the Customs House on the quay, where the night clerks keep them."'], options: [
     { label: '"I\'ll get you the seal."', do: () => { done(); return { name: label, text: ['"Not the seal. Just its mark. Press it into this." He gives you a disc of soft red wax. "The head clerk\'s desk, at the back. Go at night. Don\'t be seen; if you are, you\'re a drunk who wandered in. You\'ll pay a fine and feel foolish. Nothing worse."', '(The Customs House door is on the quay. Its night shift runs 9 pm to 4 am.)'], options: [leave] }; } },
+  ] }),
+  forger2: (label, done) => ({ name: label, text: [
+    'Ellorin holds the wax to the lamp, and smiles for the first time. "Clean. Lovely." Then he names his price, as if it were the weather. "Two thousand. Gold, not promises. Art is expensive; prison is more so."'], options: [
+    { label: 'Pay him (2,000 gold)', hint: state.gold >= 2000 ? '' : `you have ${state.gold}`, disabled: state.gold < 2000, do: () => {
+      state.gold -= 2000; state.spent = (state.spent || 0) + 2000; updateStatus(); note('Paid Ellorin Vane 2,000 gold for a pass to the Hill'); done();
+      return { name: label, text: ['Two days later you have a pass with the Republic\'s seal on it. "Don\'t thank me," he says. "Thank our mutual friend. He told me you\'d manage."'], options: [leave] }; } },
+    { label: '"I\'ll come back with it."', do: () => ({ name: label, text: ['"The wax keeps. So do I." He goes back to his poetry. (Trade, take contracts, invest in a voyage at the Exchange: bring 2,000 gold.)'], options: [leave] }) },
   ] }),
   arthur1: (label, done) => ({ name: label, text: [
     'Arthur is not what you expected. A big man in a plain coat, sleeves stained with ink, sitting on the top step eating an apple while a crowd of petitioners waits for him to finish it. When he sees you he waves you up as if you had an appointment.',

@@ -5,6 +5,7 @@ import { state, level, note, save, addRenown, packRoom } from '../game/state.js'
 import { GOODS, marketEvent, upcomingEvent } from '../game/economy.js';
 import { updateStatus, toast, trade, closePanel } from '../game/ui.js';
 import { contractOptions } from '../game/contracts.js';
+import { investOptions } from '../game/invest.js';
 import { travelTo, voyage, voyageText, CREW_PAY } from '../place.js';
 import { innPaid, payWeek, leftText } from './inn.js';
 import { MERIDIA_FOLK } from './people.js';
@@ -61,7 +62,7 @@ function clerk(name) {
     note(`The shipwrights enlarged your hold (+${hold.add})`); save(); updateStatus();
     return { name, text: [`"The shipwrights will have it done by morning. You can carry ${hold.add} more."`], options: [leave] };
   } });
-  options.push(...contractOptions('meridia', name));
+  options.push(...contractOptions('meridia', name), ...investOptions('meridia', name));
   options.push({ label: 'How do I stand with the merchant houses?', do: () => ({ name, text: [`"Your standing with the Exchange is ${state.reputation.exchange || 0}. Keep your contracts and it grows; every five points, the city pays you a little more."`], options: [leave] }) });
   options.push(leave);
   return { name, text: ['"Deeds, contracts, coin. The Exchange keeps the Republic\'s accounts, and yours, if you let it."'], options };

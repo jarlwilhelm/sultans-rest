@@ -11,6 +11,7 @@ import { craftNode, enchantNode, CRAFT_LEVEL, ENCHANT_LEVEL } from './craft.js';
 import { firstMeeting } from './redman.js';
 import { meridiaTalk } from '../meridia/talk.js';
 import { checkContracts, contractOptions } from './contracts.js';
+import { investOptions, settleInvestments } from './invest.js';
 import { caseyLuck, spouseMorning, spouseGossip } from './marriage.js';
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -182,6 +183,7 @@ function guild(npc) {
     }
     // Chapter Two: trade contracts between the two cities (contracts.js), once you've sailed to Meridia.
     if (state.flags.crossed && /Guildmaster/.test(npc.label)) options.push(...contractOptions('sultans_rest', npc.label));
+    if (level() >= 6 && /Guildmaster/.test(npc.label)) options.push(...investOptions('sultans_rest', npc.label));
     options.push({ label: 'How do I get ahead here?', do: () => ({ name: npc.label, text: [
       `Everyone starts with nothing. Then: ${RANKS.slice(1, 5).map(r => r.property).join(', then ')}. After that, only the Steward can give you a ship.`,
       'Gold and experience come from work around town (deliveries, loading ships, guild trials, bounties) and from trading.',
@@ -263,6 +265,7 @@ export function sleep() {
 export function newDay() {
   collectLoan();
   checkContracts();
+  settleInvestments();
   spouseMorning();
   import('../meridia/watch.js').then(w => w.morningWatch());
   const inc = rank().income;
