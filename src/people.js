@@ -6,6 +6,10 @@ import { makeRng, pick, range } from './noise.js';
 import { footHeight, walkable, PIERS } from './land.js';
 import { inMeridia } from './place.js';
 import { makeCharacter, charactersReady } from './characters.js';
+import { roomAt } from './rooms.js';
+// Walkers keep to the streets: never a spot inside a building you can walk into (shops, homes, the shrine), or
+// they'd wander in and get stuck at the closed door (seen at the Luminous Shrine, 2026-11-04).
+const street = (x, z) => !roomAt(x, footHeight(x, z) + 1, z);
 
 const rng = makeRng(2024);
 
@@ -245,7 +249,7 @@ function randomPoint(z) {
       const [x0, x1, z0, z1] = z.box;
       x = range(rng, x0, x1); zz = range(rng, z0, z1);
     }
-    if (walkable(x, zz, 0.3)) return new THREE.Vector2(x, zz);
+    if (walkable(x, zz, 0.3) && street(x, zz)) return new THREE.Vector2(x, zz);
   }
   return null;
 }
@@ -342,7 +346,7 @@ export function buildPeople(scene, lookables) {
           to.normalize();
           const step = Math.min(dist, n.speed * dt);
           const nx = g.position.x + to.x * step, nz = g.position.z + to.y * step;
-          if (walkable(nx, nz, 0.25)) {
+          if (walkable(nx, nz, 0.25) && street(nx, nz)) {
             g.position.x = nx; g.position.z = nz;
             moving = true;
           } else { n.target = randomPoint(n.zone); n.wait = range(rng, 0.2, 1.5); }

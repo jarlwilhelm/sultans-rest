@@ -791,8 +791,18 @@ function luminousShrine(scene) {
   for (const k of [-1.5, -0.5, 0.5, 1.5]) { B.cyl.add(x + k * 3.0, fy - 0.4, pz, 0.45, 6.6, 0.45, '#efe6d4'); addCollider(x + k * 3 - 0.45, x + k * 3 + 0.45, pz - 0.45, pz + 0.45); }
   B.box.add(x, fy + 6.2, pz + 1.0, 11, 0.7, 3.6, '#e9dcc0');
   B.box.add(x, fy + 6.9, pz + 1.0, 11, 0.3, 3.6, GOLD);
-  B.box.add(x, fy - 0.45, pz + 1.0, 11.5, 0.45, 4, '#d8c8a8');
-  addFloor(x - 5.75, x + 5.75, pz - 1, pz + 3, fy);
+  // The porch: a solid stone platform from the ground up (it floated before, with the steps running under it: the
+  // user, 2026-11-04), and a flight of steps in front, the only way up.
+  const front = pz - 1, g = Math.min(groundHeight(x, front - 2), groundHeight(x - 5, front), groundHeight(x + 5, front));
+  B.box.add(x, g - 0.4, pz + 1.0, 11.5, fy - g + 0.4, 4, '#d8c8a8');
+  addFloor(x - 5.75, x + 5.75, front, pz + 3, fy);
+  for (const k of [-1, 1]) addCollider(k < 0 ? x - 5.75 : x + 3.1, k < 0 ? x - 3.1 : x + 5.75, front, pz + 3);   // sides: only the steps lead up
+  const rise = fy - g, n = Math.max(1, Math.ceil(rise / 0.2));
+  for (let k = 1; k <= n; k++) {
+    const yk = g + rise * k / n, z1 = front - (n - k) * 0.4, z0 = z1 - 0.4;
+    B.box.add(x, g - 0.4, (z0 + z1) / 2, 6, yk - g + 0.4, 0.4, '#cfc0a0');
+    addFloor(x - 3, x + 3, z0, z1, yk);
+  }
   // Fire bowls either side of the steps: the shrine is "luminous" day and night.
   for (const k of [-1, 1]) {
     B.cyl.add(x + k * 4.6, fy, pz - 1.6, 0.35, 1.1, 0.35, '#d8c8a8');
