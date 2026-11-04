@@ -57,6 +57,16 @@ export function addLanterns(scene, list) {
     f.sprites.push(halo); f.halo = halo;
   }
 }
+// Small candle flames in stall lanterns: night only, dim (a quarter of a street lantern), a small halo.
+export function addCandles(scene, list) {
+  for (const p of list) {
+    const f = addFire(scene, p.x, p.y, p.z, { size: 0.12, sparks: false, strength: 0.25, night: true });
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: '#ffc477', transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.position.set(p.x, p.y + 0.05, p.z); halo.scale.set(0.9, 0.9, 1);
+    scene.add(halo);
+    f.sprites.push(halo); f.halo = halo;
+  }
+}
 const haloTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);

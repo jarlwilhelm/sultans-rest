@@ -1,6 +1,7 @@
 // The city of Sultan's Rest: grander, cleaner and greener the closer you get to the water;
 // smaller, plainer and more worn toward the desert. Plus the guild halls, the market,
 // the statue of King Shou and the palace on the water.
+import { doorMaterial, windowMaterial } from './doorlook.js';
 import * as THREE from 'three';
 import { Batch, SHAPES } from './batch.js';
 import { surface } from './look.js';
@@ -37,6 +38,10 @@ const B = {
   cloth: new Batch(SHAPES.box, clothMat),
   // Windows and doors; they light up warmly at night (see daylight.js).
   dark: new Batch(SHAPES.box, new THREE.MeshStandardMaterial({ roughness: 1, emissive: '#ffb45a', emissiveIntensity: 0 }), { shadows: false }),
+  // Real windows and doors (2026-11-04, the user: 'real door and window textures, all the way around', in Sultan's
+  // Rest too). Painted in code (doorlook.js), so every graphics setting and copy of the game has them.
+  win: new Batch(SHAPES.box, windowMaterial('#efe6d4'), { shadows: false }),
+  door: new Batch(SHAPES.box, doorMaterial('#7a5232'), { shadows: false }),
 };
 
 const RICH_WALLS = ['#f4ede0', '#efe4cf', '#f1e6d6', '#e9dcc3', '#f6efe6'];
@@ -148,7 +153,6 @@ function building(x, z, w, d, rich) {
   }
 
   // Windows and a door on the side facing the sea; side windows for taller houses.
-  const winColor = tier === 2 ? '#2b3a44' : '#3a2a1e';
   const perRow = Math.max(1, Math.floor(w / (tier === 0 ? 4 : 3)));
   for (let f = 0; f < floors; f++) {
     for (let i = 0; i < perRow; i++) {
@@ -159,7 +163,7 @@ function building(x, z, w, d, rich) {
       if (ruined && ox > 0 && wy > base + Math.max(top - base + 1.6, h * 0.55) - 1) continue;
       const [wx, wz] = at(ox, front);
       const ww = tier === 2 ? 1 : 0.8, wh = tier === 2 ? 1.7 : 1.1;
-      B.dark.add(wx, wy, wz, ww, wh, 0.12, winColor, ry);
+      B.win.add(wx, wy, wz, ww, wh, 0.12, tier === 2 ? '#ffffff' : '#c9a882', ry);
       // A frame and a sill; shutters on plainer houses.
       const [fx, fz] = at(ox, -d / 2 - 0.01);
       const frame = tier === 2 ? '#fbf6ec' : '#6b4a2c';
@@ -184,7 +188,11 @@ function building(x, z, w, d, rich) {
   const doorOx = -w / 2 + (Math.floor(perRow / 2) + 0.5) * (w / perRow);
   const [doorX, doorZ] = at(doorOx, front);
   const doorY = groundHeight(doorX, doorZ);
-  B.dark.add(doorX, doorY - 0.1, doorZ, 1.3, 2.4, 0.12, tier === 0 ? '#5a3f26' : '#3d2a1a', ry);
+  B.door.add(doorX, doorY - 0.1, doorZ, 1.3, 2.4, 0.12, tier === 0 ? '#e0cdb4' : '#ffffff', ry);
+  // A wooden frame all the way round the door: two posts and a lintel, standing just proud of the wall.
+  const frameC = tier === 2 ? '#e8dcc2' : '#5a3f26', FB = tier === 2 ? B.stone : B.wood;
+  for (const side of [-1, 1]) { const [jx, jz] = at(doorOx + side * 0.76, -d / 2 - 0.06); FB.add(jx, doorY - 0.1, jz, 0.2, 2.62, 0.14, frameC, ry); }
+  { const [lx, lz] = at(doorOx, -d / 2 - 0.07); FB.add(lx, doorY + 2.38, lz, 1.74, 0.24, 0.16, frameC, ry); }
   if (tier >= 1 && rng() < 0.6) {
     const [ax, az] = at(doorOx, -d / 2 - 0.8);
     B.cloth.add(ax, doorY + 2.7, az, 2.4, 0.06, 1.6, pick(rng, AWNINGS), ry, -0.3);
@@ -248,7 +256,7 @@ function guildHall(scene, gd, seed) {
   addFloor(x - 10.25, x + 10.25, pz + 1.3 - 2.5, pz + 1.3 + 2.5, QUAY_Y + 0.35);
   for (let i = 0; i < 6; i++) addCollider(x - 9 + i * 3.6 - 0.5, x - 9 + i * 3.6 + 0.5, pz - 0.5, pz + 0.5);
   // Big doors
-  if (!doorLevel) B.dark.add(x, QUAY_Y, z - d / 2 - 0.05, 3.6, 5.5, 0.15, '#3a2412');
+  if (!doorLevel) B.door.add(x, QUAY_Y, z - d / 2 - 0.05, 3.6, 5.5, 0.15, '#c8a888');
   // Dome on a drum
   B.cyl.add(x, base + h + 0.6, z, 5.2, 2.2, 5.2, WHITE);
   B.dome.add(x, base + h + 2.8, z, 5.4, 5.6, 5.4, pick(rng, [GOLD, TEAL]));
@@ -691,7 +699,7 @@ export function buildCity(scene) {
   placeReadable(scene, signBoard('THE SALTED KRAKEN', 'Beds · Food · No questions', { bg: '#1f3a4a', fg: '#e7c35a' }), {
     x: -168, y: QUAY_Y + 4.6, z: 24 - 6.5 - 0.1, w: 6, h: 1.5, title: 'The Salted Kraken (inn)',
   });
-  scene.userData.posts.push({ x: -165.5, z: 15.5, ry: 0, role: 'local', label: 'Innkeeper of the Salted Kraken', npc: { kind: 'inn' } });
+  scene.userData.posts.push({ x: -166, z: 20.5, ry: 0, role: 'local', label: 'Innkeeper of the Salted Kraken', npc: { kind: 'inn' } });
   // Sailors playing Bones on an upturned crate.
   const bx = -118, bz = 6.5;
   B.wood.add(bx, QUAY_Y, bz, 1.4, 0.6, 1.4, '#b08a5a');
@@ -733,5 +741,6 @@ export function buildCity(scene) {
 
   for (const b of Object.values(B)) b.build(scene);
   streetLamps(scene);                // last, once every building is standing (they skip anything solid)
-  scene.userData.windowMat = B.dark.material;
+  scene.userData.windowMat = B.win.material;
+  scene.userData.darkMat = B.dark.material;
 }

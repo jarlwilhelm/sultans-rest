@@ -83,7 +83,7 @@ const pickFrom = (rng, list) => list[Math.floor(rng() * list.length)];
 
 // Positions in metres from the head bone, measured on the models: the head's middle is 0.10 up and
 // 0.01 forward of the bone, the face is 0.13 forward, the top 0.27 up, and it's 0.22 wide.
-function addFeatures(race, role, head, hips, skin, hair, rng) {
+function addFeatures(race, role, head, hips, skin, hair, rng, hasHat = false) {
   if (!head) return;
   const skinM = FM(skin);
   if (race === 'tiefling') {
@@ -99,8 +99,15 @@ function addFeatures(race, role, head, hips, skin, hair, rng) {
     for (const s of [-1, 1]) part(head, cone, FM('#efe6d2'), [s * 0.028, 0.035, 0.118], [0.008, 0.03, 0.008], [0.15, 0, 0]);
   } else if (race === 'dwarf') {
     part(head, cone, FM(hair), [0, 0.05, 0.095], [0.08, -0.19, 0.045], [0.2, 0, 0]);
-  } else if (race === 'gnome') {
-    part(head, cone, FM(pickFrom(rng, ['#b8382b', '#2e6c8e', '#5f8a3a', '#8e3b6c'])), [0, 0.22, 0.0], [0.12, 0.22, 0.12], [-0.15, 0, 0]);
+  } else if (race === 'gnome' && !hasHat) {
+    // A gnome's stocking cap (redone again 2026-11-04: the user still saw 'a cone'): a cream fur brim, a round crown,
+    // and a long soft tail that bends back and droops down behind the head, a pompom on its end.
+    const col = pickFrom(rng, ['#b8382b', '#2e6c8e', '#5f8a3a', '#8e3b6c', '#c97a2a']);
+    const cloth = FL(col), fur = FM('#efe6d2');
+    part(head, cyl, fur, [0, 0.155, 0.0], [0.13, 0.04, 0.13]);
+    part(head, new THREE.SphereGeometry(1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), cloth, [0, 0.175, 0.0], [0.122, 0.1, 0.124]);
+    part(head, CAP_TAIL, cloth, [0, 0, 0], [1, 1, 1]);
+    part(head, lowBall, fur, CAP_TIP, [0.03, 0.03, 0.03]);
   } else if (race === 'dragonborn') {
     lizardHead(head, skin, rng);
     if (hips) part(hips, cone, skinM, [0, 0, -0.1], [0.06, 0.8, 0.06], [-2.3, 0, 0]);
@@ -118,6 +125,24 @@ function addFeatures(race, role, head, hips, skin, hair, rng) {
 const flat = new Map();
 const FL = (color) => { if (!flat.has(color)) flat.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.75, flatShading: true })); return flat.get(color); };
 const lowBall = new THREE.SphereGeometry(1, 9, 7);
+// The gnome cap's tail: a tube along a curve (up from the crown, back, then down behind the head), thick at the
+// crown and thin at the tip. Built once, shared by every gnome (head-local units).
+const CAP_PATH = new THREE.CatmullRomCurve3([[0, 0.24, 0], [0, 0.33, -0.03], [0.02, 0.37, -0.1], [0.05, 0.33, -0.17], [0.07, 0.24, -0.2], [0.08, 0.16, -0.19]].map(p => new THREE.Vector3(...p)));
+const CAP_TIP = CAP_PATH.getPointAt(1).toArray();
+const CAP_TAIL = (() => {
+  const tub = 24, rad = 10, g = new THREE.TubeGeometry(CAP_PATH, tub, 1, rad, false);
+  const pos = g.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i <= tub; i++) {
+    const u = i / tub, c = CAP_PATH.getPointAt(u), r = 0.085 * (1 - u) + 0.016 * u;
+    for (let j = 0; j <= rad; j++) {
+      const k = i * (rad + 1) + j;
+      v.fromBufferAttribute(pos, k).sub(c).multiplyScalar(r).add(c);
+      pos.setXYZ(k, v.x, v.y, v.z);
+    }
+  }
+  g.computeVertexNormals();
+  return g;
+})();
 const snoutGeo = new THREE.CylinderGeometry(0.42, 1, 1, 8).rotateX(Math.PI / 2);
 const lowCone = new THREE.ConeGeometry(1, 1, 6).translate(0, 0.5, 0);
 function lizardHead(head, skin, rng) {
@@ -268,7 +293,7 @@ function makeKitCharacter({ race, role, height, girth, skin, look, base }, rng) 
   const headAt = anchorOn(head, obj, new THREE.Vector3(k.cx, k.top - 0.27, k.front - 0.13));
   obj.updateMatrixWorld(true);
   const hipsAt = hips ? anchorOn(hips, obj, obj.worldToLocal(hips.getWorldPosition(new THREE.Vector3()))) : null;
-  addFeatures(race, role, headAt, hipsAt, skin, hair, rng);
+  addFeatures(race, role, headAt, hipsAt, skin, hair, rng, !!look?.hat);
   let heldGrip = null;
   if (look) {
     addHat(headAt, look.hat);

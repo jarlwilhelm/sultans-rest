@@ -21,6 +21,9 @@ import { daylight } from './daylight.js';
 import { strangerWatch } from './game/stranger.js';
 import { seizureWatch } from './game/seizure.js';
 import { crossing, startCrossing } from './crossing.js';
+import { inMeridia, PLACE_NAMES, PLACE, PREVIEW } from './place.js';
+import { buildMeridia } from './meridia/city.js';
+import { buildMeridiaLife } from './meridia/life.js';
 import { buildProperty } from './property.js';
 import { buildAlesHouse, furnish, lockPalace } from './buildings.js';
 import { placeGoods } from './goods.js';
@@ -66,21 +69,26 @@ async function main() {
   const followSun = buildLights(scene);
   buildLand(scene);
   const updateWater = buildWater(scene, scene.fog);
-  const updatePassage = buildPassage(scene);
-  const updateKraken = buildKraken(scene);
-  buildCity(scene);
-  buildBoard(scene, readables, colliders, groundHeight, { x: -40, z: 8, ry: 0 });   // the trade notices (daily quests): on the quay between the market and your stand
-  buildAlesHouse(scene);
-  lockPalace(scene);
+  // Which city: Sultan's Rest (Chapter One) or Meridia (Chapter Two, meridia/). Only that one is built.
+  const updatePassage = inMeridia ? () => {} : buildPassage(scene);
+  const updateKraken = inMeridia ? () => {} : buildKraken(scene);
   const lookables = [];
+  if (inMeridia) buildMeridia(scene);
+  else {
+    buildCity(scene);
+    buildBoard(scene, readables, colliders, groundHeight, { x: -40, z: 8, ry: 0 });   // the trade notices (daily quests): on the quay between the market and your stand
+    buildAlesHouse(scene);
+    lockPalace(scene);
+  }
   const updateShips = buildShips(scene, lookables);
-  const updateProperty = buildProperty(scene);
+  const updateProperty = inMeridia ? () => {} : buildProperty(scene);
   scatterGround(scene);            // rocks and grass tufts, after the buildings so they stay out of them
   try { await loadCharacters(); } catch (e) { console.warn('Characters did not load; using simple figures.', e); }
-  try { await loadProps(); furnish(scene); placeGoods(scene); fitWaitingHulls(); } catch (e) { console.warn('Furniture did not load.', e); }
+  try { await loadProps(); if (!inMeridia) furnish(scene); placeGoods(scene); fitWaitingHulls(); } catch (e) { console.warn('Furniture did not load.', e); }
   dispatchEvent(new CustomEvent('lavine:property'));
   const updatePeople = buildPeople(scene, lookables);
-  makeStatue(scene, scene.userData.statueBase);
+  if (!inMeridia) makeStatue(scene, scene.userData.statueBase);
+  const updateLife = inMeridia ? buildMeridiaLife(scene, lookables) : () => {};   // Meridia's own people, your ship, your stand and home (meridia/life.js)
   const flames = scene.userData.flames;
   const fx = effects(renderer, scene, camera);
   try { const g = localStorage.getItem('lavine-graphics'); if (g != null) fx.quality = +g; } catch { /* fine */ }
@@ -110,11 +118,11 @@ async function main() {
   buildAvatar();
   addEventListener('lavine:look', buildAvatar);
   const updateDaylight = daylight(scene, sky, renderer);
-  const stranger = strangerWatch(scene, lookables);
-  const seizure = seizureWatch(scene);              // the Meridian cargo seized on the quay (game/seizure.js)
-  const sneak = sneakWatch(scene);                 // following, overhearing, the watcher (game/sneak.js)
+  const stranger = inMeridia ? () => {} : strangerWatch(scene, lookables);
+  const seizure = inMeridia ? () => {} : seizureWatch(scene);              // the Meridian cargo seized on the quay (game/seizure.js)
+  const sneak = inMeridia ? () => {} : sneakWatch(scene);                 // following, overhearing, the watcher (game/sneak.js)
   sortScene(scene);                  // the city in one group, each room's things in its own (rooms.js)
-  const fireUpdate = fireLights(scene, 4);   // flames, sparks, and real light on the nearest fires and lanterns (fire.js)
+  const fireUpdate = fireLights(scene, 5);   // flames, sparks, and real light on the nearest fires and lanterns (fire.js)
   const roomLight = new THREE.PointLight('#ffcf8a', 0, 20, 2);
   scene.add(roomLight);
 
@@ -122,8 +130,31 @@ async function main() {
   // Start at the end of the Grand Pier, looking back at the city.
   const player = { x: 0, z: -56, yaw: Math.PI, pitch: 0.04, y: 0, bob: 0, jump: 0, vy: 0 };
   // For testing on this computer only (the browser console): lavineDebug.player.x = ... to stand somewhere.
-  if (location.hostname === 'localhost') window.lavineDebug = { player, scene, camera };
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') window.lavineDebug = { player, scene, camera, step: (n = 1) => { for (let i = 0; i < n; i++) frame(true); } };
   addEventListener('lavine:crossing', () => startCrossing(scene, () => { player.x = 0; player.z = -60; player.yaw = Math.PI; }));
+  // Levinite (game/levinite.js): the sunset holds while you're carried from place to place, then it's morning.
+  let high = false;
+  addEventListener('lavine:high', async (e) => {
+    high = true;
+    const fadeEl = $('fade'), wait = (ms) => new Promise(r => setTimeout(r, ms));
+    for (const s of e.detail.stops) {
+      fadeEl.textContent = ''; fadeEl.classList.add('on'); await wait(900);
+      player.x = s.x; player.z = s.z; player.yaw = s.yaw; player.pitch = 0.05; state.minute = 19 * 60 + 35;
+      fadeEl.classList.remove('on'); await wait(700);
+      toast(s.text, 3600); await wait(3600);
+    }
+    fadeEl.textContent = '...'; fadeEl.classList.add('on'); await wait(1800);
+    state.day++; state.minute = 7 * 60; state.awake = 0;
+    const m = state.mer || {};
+    if (m.home) { const { homeSpot } = await import('./meridia/spots.js'); const h = homeSpot(m.home); player.x = h.x; player.z = h.z - 6; } else { player.x = -52; player.z = 44; }
+    player.yaw = Math.PI;
+    newDay();
+    high = false;
+    fadeEl.classList.remove('on'); setTimeout(() => { fadeEl.textContent = ''; }, 1000);
+    import('./game/levinite.js').then(L => L.wakeUp());
+  });
+  // The Republic's gaol (meridia/watch.js): you're let out into the street outside it.
+  addEventListener('lavine:jailed', () => { player.x = 12; player.z = 100; player.yaw = Math.PI; updateStatus(); });
   player.y = footHeight(player.x, player.z) + 1.65;
   const keys = new Set();
   const sound = new HarborSound();
@@ -159,7 +190,21 @@ async function main() {
     sound.start();
     if (!state.flags.intro) intro();       // your name, your people, the letter about Ale
     else lock();
+    dispatchEvent(new CustomEvent('lavine:play'));
   };
+  // ?scene=crossing: play the crossing on its own, straight away (place.js; nothing is saved).
+  if (PREVIEW === 'crossing') setTimeout(() => {
+    $('start').classList.add('hidden'); $('loading').classList.add('hidden');
+    sound.start();
+    startCrossing(scene, null, { preview: true });
+  }, 600);
+  // The title screen and the place name say which city you're in.
+  if (inMeridia) {
+    const subs = document.querySelectorAll('#start .sub');
+    subs[0].textContent = 'Chapter Two · Meridia, capital of the Coastal Republic';
+    subs[1].textContent = 'Green hills, stone walls, and a city that doesn\'t know your name yet.';
+    $('place').textContent = 'MERIDIA · THE COASTAL REPUBLIC';
+  }
   $('resume').addEventListener('click', lock);
   canvas.addEventListener('click', () => { if (free() && $('start').classList.contains('hidden')) lock(); });
   document.addEventListener('pointerlockchange', () => {
@@ -277,30 +322,73 @@ async function main() {
   const current = { readable: null, npc: null, door: null };
   const forward = new THREE.Vector3();
   const objectOf = (hitObj, list) => { let o = hitObj; while (o && !list.includes(o)) o = o.parent; return o; };
-  function lookAround() {
+  // Line of sight (2026-11-04, the user's report: the cursor picked things far away when looking at something
+  // close, and in Ale's house things in other places). How far you can see straight ahead before something
+  // solid (a wall, a building, a stall, a sign) is in the way; checked 8 times a second. Nothing behind that
+  // counts, and nothing outside the room you're in.
+  let sight = Infinity, sightTimer = 0, solids = [], solidsCount = -1;
+  function solidList() {
+    let n = 0; scene.traverse(() => { n++; });
+    if (n === solidsCount) return solids;
+    solidsCount = n;
+    const people = new Set(lookables.filter(l => l.person).map(l => l.object));
+    solids = [];
+    scene.traverse(o => {
+      if (!o.isMesh || o.isSkinnedMesh || o.isSprite || o.material?.transparent || o.userData.noBlock) return;
+      for (let p = o; p; p = p.parent) if (people.has(p)) return;
+      solids.push(o);
+    });
+    return solids;
+  }
+  function lineOfSight(dt) {
+    if ((sightTimer -= dt) > 0) return sight;
+    sightTimer = 0.12;
+    ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+    ray.near = view.dist ? view.dist * 0.8 : 0;
+    ray.far = 125;
+    const hit = ray.intersectObjects(solidList().filter(visibleDeep), false)[0];
+    ray.near = 0;
+    sight = hit ? hit.distance : Infinity;
+    return sight;
+  }
+  function lookAround(dt = 0.016) {
     camera.getWorldDirection(forward);
+    const clearTo = lineOfSight(dt) + 0.35;
+    const here = currentRoom();
+    const sameRoom = (o) => { const w = o.getWorldPosition(new THREE.Vector3()); return roomAt(w.x, w.y + 0.5, w.z) === here; };
     const lookObjects = lookables.filter(l => visibleDeep(l.object)).map(l => l.object);   // only people in the place you're in
-    // A person (or ship) in the middle of the view.
+    // A person in the middle of the view, not behind anything.
     ray.setFromCamera(new THREE.Vector2(0, 0), camera);
     ray.far = 14;
     let hit = ray.intersectObjects(lookObjects, true)[0];
+    if (hit && (hit.distance > clearTo || !sameRoom(objectOf(hit.object, lookObjects)))) hit = null;
     let l = hit && lookables.find(x => x.object === objectOf(hit.object, lookObjects));
-    if (!l) {
+    if (!l && !here) {
+      // Far off: a ship, only if nothing nearer is in the way.
       ray.far = 120;
       const ships = lookables.filter(x => !x.person && visibleDeep(x.object)).map(x => x.object);
       hit = ray.intersectObjects(ships, true)[0];
+      if (hit && hit.distance > clearTo) hit = null;
       l = hit && lookables.find(x => x.object === objectOf(hit.object, ships));
     }
     const talkable = l && l.npc && hit.distance < 4.2 + view.dist ? l : null;
     current.npc = talkable ? { ...talkable.npc, label: talkable.npc.label || talkable.label, onGone: talkable.onGone } : null;
-    // A sign or poster within reach that you're facing.
+    // A sign, poster, door or clue within reach: one your line of sight actually reaches (signs hit dead on win;
+    // things without a board of their own need you to face them, with nothing in between), in the room you're in.
     let best = null, bestScore = 0;
-    if (!talkable) for (const r of readables) {
+    if (!talkable) {
+      ray.far = 4.5 + view.dist;
+      const boards = readables.filter(r => r.mesh && visibleDeep(r.mesh) && !(r.when && !r.when())).map(r => r.mesh);
+      const bh = ray.intersectObjects(boards, false)[0];
+      if (bh && bh.distance <= clearTo + 0.2) best = readables.find(r => r.mesh === bh.object);
+    }
+    if (!talkable && !best) for (const r of readables) {
       const d = r.pos.distanceTo(camera.position) - view.dist;
-      if (d > 4.5 || (r.when && !r.when()) || roomAt(r.pos.x, r.pos.y, r.pos.z) !== currentRoom()) continue;
+      if (d > 4.5 || (r.when && !r.when()) || roomAt(r.pos.x, r.pos.y, r.pos.z) !== here) continue;
+      if (r.pos.distanceTo(camera.position) > clearTo + 1.2) continue;     // something solid is in the way
       const dir = r.pos.clone().sub(camera.position).normalize();
       const score = dir.dot(forward) - d * 0.02;
-      if (dir.dot(forward) > 0.82 && score > bestScore) { best = r; bestScore = score; }
+      if (dir.dot(forward) > 0.86 && score > bestScore) { best = r; bestScore = score; }
     }
     current.readable = best;
     $('look').textContent = l ? l.label : '';
@@ -333,8 +421,8 @@ async function main() {
     }
   }
 
-  function frame() {
-    requestAnimationFrame(frame);
+  function frame(manual) {
+    if (manual !== true) requestAnimationFrame(frame);
     const dt = Math.min(clock.getDelta(), 0.05);
     if (arcade.active) return;             // the city waits while you play a mini-game
     // The world stands still in the map, the pause menu and the "click to resume" screen
@@ -347,11 +435,11 @@ async function main() {
 
     // Time passes only while you're playing: it stops in the map, menus, talks and the pause menu.
     let tiredSpeed = 1;
-    if (locked() && free()) {
+    if (locked() && free() && !high) {
       const mins = dt * GAME_MINUTES_PER_SECOND;
       state.minute += mins;
       if (state.minute >= 24 * 60) { state.minute -= 24 * 60; state.day++; newDay(); save(); }
-      tiredSpeed = tiredness(dt, mins, () => { player.x = -40; player.z = 67; player.yaw = Math.PI; });
+      tiredSpeed = tiredness(dt, mins, () => { if (inMeridia) { player.x = -52; player.z = 40; } else { player.x = -40; player.z = 67; } player.yaw = Math.PI; });
     }
 
     if (locked() && free()) {
@@ -433,6 +521,7 @@ async function main() {
     updateProperty(wt);
     updatePeople(wt, wdt, player);
     stranger(wdt, player);
+    updateLife(wdt, player);
     seizure(wdt, player);
     sneak(wdt, player);
     for (const [i, f] of flames.entries()) { const k = (f.userData.size || 1.6) * (1 + Math.sin(wt * 9 + i * 2) * 0.09 + Math.sin(wt * 23 + i) * 0.05); f.scale.set(k, k * 1.2, 1); }
@@ -444,7 +533,7 @@ async function main() {
     sound.update(nearWater * muffle, busyArea * muffle);
 
     updateDust(wdt, camera.position);
-    if ((lookTimer -= dt) <= 0) { lookAround(); lookTimer = 0.12; }
+    if ((lookTimer -= dt) <= 0) { lookAround(0.12); lookTimer = 0.12; }
     if ((statusTimer -= dt) <= 0) { updateStatus(); sortScene(scene); statusTimer = 0.5; }
     updateCompass(player);
     if ((saveTimer -= dt) <= 0) { save(); saveTimer = 20; }

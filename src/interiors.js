@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { groundHeight, colliders, addFloor } from './land.js';
 import { surface } from './look.js';
+import { doorMaterial } from './doorlook.js';
 import { glowTextureCanvas, placeReadable, signBoard, readables } from './signs.js';
 import { addRoom, doorways } from './rooms.js';
 
@@ -147,6 +148,7 @@ export function hollow(scene, { x, z, w, d, h, color = '#efe4cf', doorW = 1.6, d
   const fy = gMax + 0.05;                 // the floor
   const base = gMin - 0.6;
   const wallMat = matFor(color);
+  const stepMat = matFor('#9a9488');
   const cols = [];
   const add = (bx0, bx1, bz0, bz1, y0, y1, mat = wallMat, collide = true) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(bx1 - bx0, y1 - y0, bz1 - bz0), mat);
@@ -163,12 +165,32 @@ export function hollow(scene, { x, z, w, d, h, color = '#efe4cf', doorW = 1.6, d
   add(x + doorW / 2, x1, z0, z0 + t, base, top);
   add(x - doorW / 2, x + doorW / 2, z0, z0 + t, fy + doorH, top, wallMat, false);
   add(x - doorW / 2, x + doorW / 2, z0 - 0.4, z0 + t, base, fy, wallMat, false);   // a threshold step
+  // Steps up to a door that stands above the street (2026-11-04, the user: the inn's door was 'raised up super
+  // high'). One step per 22 cm or so, 45 cm deep, stone, each a floor you walk on.
+  const stairs = (zs, dir) => {
+    const g = groundHeight(x, zs + dir * 1.2), rise = fy - g;
+    if (rise < 0.2) return;
+    const n = Math.ceil(rise / 0.22);
+    for (let k = 1; k < n; k++) {
+      const yk = g + rise * k / n, za = zs + dir * (n - k) * 0.45, zb = zs + dir * (n - k - 1) * 0.45;
+      const lo = Math.min(za, zb), hi = Math.max(za, zb);
+      add(x - doorW / 2 - 0.5, x + doorW / 2 + 0.5, lo, hi, base, yk, stepMat, false);
+      addFloor(x - doorW / 2 - 0.5, x + doorW / 2 + 0.5, lo, hi, yk);
+    }
+    add(x - doorW / 2 - 0.5, x + doorW / 2 + 0.5, Math.min(zs, zs + dir * 0.02), Math.max(zs, zs + dir * 0.02), base, fy, stepMat, false);
+  };
+  stairs(z0 - 0.4, -1);
+  // A dark wooden frame all the way round the doorway.
+  const frameMat = new THREE.MeshStandardMaterial({ color: '#3a2716', roughness: 0.85 });
+  for (const sx of [-1, 1]) add(x + sx * (doorW / 2 + 0.06) - 0.08, x + sx * (doorW / 2 + 0.06) + 0.08, z0 - 0.08, z0 + 0.02, fy, fy + doorH + 0.16, frameMat, false);
+  add(x - doorW / 2 - 0.14, x + doorW / 2 + 0.14, z0 - 0.09, z0 + 0.02, fy + doorH, fy + doorH + 0.18, frameMat, false);
   // Back wall (with an optional door to a yard).
   if (backDoor) {
     add(x0, x - doorW / 2, z1 - t, z1, base, top);
     add(x + doorW / 2, x1, z1 - t, z1, base, top);
     add(x - doorW / 2, x + doorW / 2, z1 - t, z1, fy + doorH, top, wallMat, false);
     add(x - doorW / 2, x + doorW / 2, z1 - t, z1 + 0.4, base, fy, wallMat, false);
+    stairs(z1 + 0.4, 1);
   } else add(x0, x1, z1 - t, z1, base, top);
   add(x0, x0 + t, z0, z1, base, top);
   add(x1 - t, x1, z0, z1, base, top);
@@ -189,7 +211,7 @@ export function hollow(scene, { x, z, w, d, h, color = '#efe4cf', doorW = 1.6, d
   }
   // The doors: plank doors on hinges. They stay shut; E opens one and takes you through (rooms.js).
   const room = addRoom({ name, parent: scene, box: { x0: x0 + t, x1: x1 - t, z0: z0 + t, z1: z1 - t, y0: fy - 1, y1: top }, shell: null });
-  const doorMat = new THREE.MeshStandardMaterial({ color: doorColor, roughness: 0.8 });
+  const doorMat = doorMaterial(new THREE.Color(doorColor).lerp(new THREE.Color('#8a5a34'), 0.5).getStyle());
   const makeDoor = (dz, way, out, inn) => {
     const hinge = new THREE.Group();
     hinge.position.set(x - doorW / 2, fy, dz);

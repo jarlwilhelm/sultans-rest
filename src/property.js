@@ -11,6 +11,7 @@ import { GOODS } from './game/economy.js';
 import { prop, hollow, setShellActive, lamp } from './interiors.js';
 import { trade, toast } from './game/ui.js';
 import { questState } from './game/quests.js';
+import { buildGreenhouse } from './greenhouse.js';
 
 // What your shop sells grows with your level (looks and words only).
 export const TIERS = ['Cabbages', 'Fresh Produce', 'Produce & Spice', 'Fine Goods', 'Imports of Every Land'];
@@ -117,10 +118,11 @@ export function buildProperty(scene) {
   const spire = new THREE.Mesh(new THREE.ConeGeometry(0.15, 1.4, 8), gold); spire.position.set(x, y + 11.6, z); big.add(spire);
   levels.push(big);
 
-  // 4: the Add-on: a wooden warehouse at the side and a rooftop terrace with a canopy and banners.
+  // 4: the Add-on: a greenhouse at the side (you can walk in and pick produce: greenhouse.js) and a rooftop
+  // terrace with a canopy and banners. (It was a closed wooden warehouse until 2026-11-04.)
   const add = new THREE.Group();
-  box(add, wood, x + w / 2 + 2.6, y, z + 1, 4.6, 4.2, 8);
-  box(add, darkWood, x + w / 2 + 2.6, y, z - 3.02, 2.4, 3, 0.08);
+  const green = buildGreenhouse(add, { x0: x + w / 2 + 0.3, x1: x + w / 2 + 4.9, z0: z - 3, z1: z + 5 });
+  for (const c of green.cols) colliders.push(Object.assign(c, { on: { ...c } }));
   for (const [cx, cz] of [[-4.6, -4.6], [4.6, -4.6], [-4.6, 4.6], [4.6, 4.6]]) {
     const col = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.4, 10), plaster);
     col.position.set(x + cx, y + 7.7 + 1.2, z + cz); col.castShadow = true; add.add(col);
@@ -253,7 +255,11 @@ export function buildProperty(scene) {
     setShellActive(storeShell, lvl === 2);
     setShellActive(bigShell, lvl >= 3);
     furnishInside(lvl);
-    if (lvl === 4) set(extraCollider, x + w / 2 + 0.3, x + w / 2 + 4.9, z - 3, z + 5); else set(extraCollider, 0, 0, 0, 0);
+    set(extraCollider, 0, 0, 0, 0);
+    // The greenhouse: solid and pickable only once it's yours.
+    for (const c of green.cols) Object.assign(c, lvl === 4 ? c.on : { x0: 0, x1: 0, z0: 0, z1: 0 });
+    for (const r of green.reads) { const i = readables.indexOf(r); if (i >= 0) readables.splice(i, 1); if (lvl === 4) readables.push(r); }
+    if (lvl === 4) green.refresh();
     // Readables: the sale sign or your shop sign.
     const ri = readables.indexOf(saleRead); if (ri >= 0) readables.splice(ri, 1);
     const si = readables.indexOf(signRead); if (si >= 0) readables.splice(si, 1);
@@ -295,11 +301,24 @@ export function buildProperty(scene) {
       shipObj.rotation.y = Math.PI;
       scene.add(shipObj);
       scene.userData.ownShip = shipObj;
+      // Chapter Two: your ship sails to Meridia (the first time is the crossing scene: crossing.js).
+      readables.push({ pos: new THREE.Vector3(0, QUAY_Y + 1.6, -60), title: 'Your ship',
+        get verb() { return state.flags.crossed ? 'Sail to Meridia (about two months along the coast, 300 gold for the crew)' : 'Set sail for Meridia'; },
+        action: async () => {
+          if (!state.flags.crossed) return dispatchEvent(new CustomEvent('lavine:crossing'));
+          const p = await import('./place.js');
+          if (state.gold < p.CREW_PAY) return toast(`The crew wants ${p.CREW_PAY} gold for two months at sea before they cast off.`);
+          const kept = await p.voyage('meridia');
+          const f = document.getElementById('fade'); f.style.whiteSpace = 'pre-line'; f.textContent = p.voyageText('meridia', kept); f.classList.add('on');
+          setTimeout(() => p.travelTo('meridia'), 3800);
+        } });
     }
   }
   show();
   addEventListener('lavine:property', show);
+  let ripen = 0;
   return (t) => {
-    if (shipObj) { shipObj.position.y = Math.sin(t * 0.8) * 0.15; shipObj.rotation.z = Math.sin(t * 0.6) * 0.025; }
+    if ((ripen += 1) % 120 === 0 && state.rank >= 4) green.refresh();     // a new morning: the beds are ripe again
+    if (shipObj) { shipObj.position.y = Math.sin(t * 0.8) * 0.15; shipObj.rotation.set(0, Math.PI, Math.sin(t * 0.6) * 0.025); }
   };
 }

@@ -19,7 +19,7 @@ export const RANKS = [
 for (const r of RANKS) r.name = r.title;
 
 // Levels 1-10 from experience (XP). Each level opens something.
-export const LEVELS = [0, 20, 60, 120, 200, 300, 420, 560, 720, 900];
+export const LEVELS = [0, 20, 60, 120, 200, 300, 420, 560, 720, 900, 1100, 1330, 1590, 1880, 2200, 2550, 2930, 3340, 3780, 4250];   // levels 11-20: Chapter Two
 export const UNLOCKS = {
   1: 'Market Run, Cargo Hold, Gull Patrol; Ale\'s house and stand',
   2: 'Trading with ships; Bones and Twenty-One; the Salted Kraken (inside)',
@@ -31,6 +31,16 @@ export const UNLOCKS = {
   8: 'Store Add-on; the palace',
   9: '',
   10: 'Ask Xi for a ship',
+  11: 'Meridia: a room at the inn, a pop-up stand, trade contracts at the Exchange',
+  12: 'A house of your own in Meridia; a warehouse bay',
+  13: 'A store in Meridia; a bigger hold for your ship',
+  14: 'The forger will hear you out',
+  15: 'Marriage: courting, and Redman can find you someone',
+  16: 'A bigger store; the back room',
+  17: 'A townhouse',
+  18: 'The merchant houses\' biggest contracts',
+  19: '',
+  20: 'Whatever Redman has been waiting for',
 };
 export function level(xp = state.renown) { let l = 1; LEVELS.forEach((need, i) => { if (xp >= need) l = i + 1; }); return l; }
 export const atLevel = (n) => level() >= n;
@@ -58,11 +68,53 @@ if (get(OLD_KEY) && !get(slotKey(1))) { put(slotKey(1), get(OLD_KEY)); put(OLD_K
 export let slot = Math.min(SLOTS, Math.max(1, parseInt(get(LAST) || '1', 10) || 1));
 
 const fresh = () => ({
-  gold: 10, pack: {}, rank: 1, renown: 0, reputation: { merchants: 0, mariners: 0, transmuters: 0, adventurers: 0, palace: 0 },
+  gold: 10, pack: {}, rank: 1, renown: 0, reputation: { merchants: 0, mariners: 0, transmuters: 0, adventurers: 0, palace: 0, exchange: 0 },
   sheet: structuredClone(SHEET), day: 1, minute: 8 * 60, // 8:00 in the morning
   best: {}, played: {}, flags: {}, shopName: "Ale's Cabbages", log: [], spent: 0, earned: 0, haggled: {},
   name: null, race: null, clues: [],
 });
+
+// For trying Chapter Two without playing Chapter One first: open the game at http://localhost:8770/?start=meridia
+// (2026-11-04, the user's ask). It makes a save at the start of Chapter Two in the first EMPTY slot (never
+// overwrites one): your latest character's name and looks, Chapter One finished, level 11, a ship, standing in
+// Meridia's harbor. With no empty slot it says so and does nothing.
+// Walk around one city with the save you continue (this computer only; 2026-11-04, the user wanted a link for each):
+// http://localhost:8770/?go=sultans_rest or ?go=meridia moves your current save to that city's harbor, then
+// the address goes back to normal.
+(function goTo() {
+  let to = null;
+  try { if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return; to = new URLSearchParams(location.search).get('go'); } catch { return; }
+  if (to !== 'meridia' && to !== 'sultans_rest') return;
+  try { history.replaceState(null, '', location.pathname); } catch { /* fine */ }
+  const s = load(slot);
+  if (!s) return;
+  s.place = to; s.arrived = to;
+  put(slotKey(slot), JSON.stringify(s));
+})();
+(function chapterTwoStart() {
+  let want = null;
+  try { want = new URLSearchParams(location.search).get('start'); } catch { return; }
+  if (want !== 'meridia') return;
+  try { history.replaceState(null, '', location.pathname); } catch { /* fine */ }
+  const empty = [1, 2, 3].find(n => !get(slotKey(n)));
+  if (!empty) { alert('All three save slots are in use. Delete one (Load Game) to make room for the Chapter Two start.'); return; }
+  const you = load(slot);
+  const s = fresh();
+  Object.assign(s, {
+    name: you?.name || 'Traveler', race: you?.race || 'Human', look: you?.look || null, shopName: you?.shopName || "Ale's Cabbages",
+    rank: 5, renown: 1100, gold: 1500, day: 30, minute: 10 * 60, place: 'meridia', storyVersion: 2,
+    pack: { saffron: 15, silk: 6, glass: 10, cumin: 10, grain: 12 },
+    flags: { intro: true, ship: true, crossed: true, metRedman: true, purse: true, palacePass: true, xiKnows: true, letter: true },
+    quests: Object.fromEntries(['cabbages', 'night', 'forty', 'package', 'noface', 'third', 'noface2', 'letters', 'ship'].map(id => [id, { step: 0, done: true }])),
+    clues: ['inn', 'ledger', 'transmuter', 'bounty', 'garden', 'pilot', 'redman', 'xi'],
+    coins: 3, owned: ['hat:straw', 'hat:captain', 'held:coin', 'keep:purse'],
+    log: ['Day 30: Chapter One finished (a Chapter Two start save, made for testing).'],
+  });
+  if (!s.look) s.look = { race: 'human', base: 'Male_Peasant', skin: '#c68642', hair: '#3a2618', hue: 0 };
+  put(slotKey(empty), JSON.stringify(s));
+  put(LAST, String(empty));
+  slot = empty;
+})();
 
 export const state = load(slot) || fresh();
 
@@ -118,7 +170,9 @@ export const rank = () => RANKS[state.rank];
 export const nextRank = () => RANKS[state.rank + 1] || null;
 export const atLeast = (id) => state.rank >= RANKS.findIndex(r => r.id === id);
 export const packCount = () => Object.values(state.pack).reduce((s, n) => s + n, 0);
-export const packRoom = () => rank().pack - packCount();
+// What you can carry: your property's size (RANKS.pack), plus your ship's hold upgrades (Chapter Two, the Exchange).
+export const capacity = () => rank().pack + (state.holdBonus || 0);
+export const packRoom = () => capacity() - packCount();
 
 export function mod(ability) { return Math.floor((state.sheet.scores[ability] - 10) / 2); }
 export function skillBonus(skill) {

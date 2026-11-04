@@ -3,11 +3,16 @@
 // place it, click elsewhere to move it, click it again to remove it).
 // Directions: north is inland (+z, toward the desert), south is the sea. Facing north, east is on
 // your right, which in this world is -x (so west is +x).
+import { innPaid } from './meridia/inn.js';
 import { colliders, PIERS, PALACE, CITY_WALL } from './land.js';
 import { state, level, nextRank, save } from './game/state.js';
 import { currentStep, NAMED, questEvent, gateText, inHours } from './game/quests.js';
+import { inMeridia } from './place.js';
+import { SPOTS, homeSpot, storeSpot } from './meridia/spots.js';
+import { MERIDIA_FOLK } from './meridia/people.js';
+import { C, R_OUT, R_MID, R_IN } from './meridia/layout.js';
 
-export const PLACES = [
+const SULTANS_PLACES = [
   { id: 'house', name: "Ale's house", x: -40, z: 63, icon: 'house' },
   { id: 'stand', name: 'Your stand', x: -50, z: 15, icon: 'stand' },
   { id: 'market', name: 'Market', x: 0, z: 19, icon: 'market' },
@@ -24,16 +29,25 @@ export const PLACES = [
   { id: 'gateE', name: 'East Gate', x: -183, z: 140, icon: 'gate' },
   { id: 'gateW', name: 'West Gate', x: 183, z: 140, icon: 'gate' },
 ];
+// Meridia (Chapter Two): its landmarks; 'house' and 'stand' are your house (once bought) and pop-up stand.
+const MERIDIA_PLACES = [
+  ...Object.entries(SPOTS).filter(([id]) => !['home', 'store', 'popup'].includes(id)).map(([id, s]) => ({ id, name: s.name, x: s.x, z: s.z, icon: /Gate/.test(s.name) ? 'gate' : 'guild' })),
+  { id: 'house', name: 'Your house', get x() { return homeSpot(state.mer?.home).x; }, get z() { return homeSpot(state.mer?.home).z; }, icon: 'house' },
+  { id: 'stand', name: 'Your pop-up stand', x: SPOTS.popup.x, z: SPOTS.popup.z, icon: 'stand' },
+  { id: 'store', name: 'Your store', get x() { return storeSpot(state.mer?.store).x; }, get z() { return storeSpot(state.mer?.store).z; }, icon: 'stand' },
+];
+export const PLACES = inMeridia ? MERIDIA_PLACES : SULTANS_PLACES;
 const P = Object.fromEntries(PLACES.map(p => [p.id, p]));
 // Where story characters stand (for the compass).
 const NPC_AT = { mariners: { x: -72, z: 12 }, inn: { x: -168, z: 22 }, guildmaster: { x: -110, z: 27 }, transmuter: { x: -145, z: 27 }, bounty: { x: 64, z: 27 }, steward: { x: 135, z: -36 } };
 
 // Your next goal, from where you are in the story.
 export function objective() {
+  if (inMeridia) return meridiaObjective();
   const n = nextRank();
   // The story first: your current quest step.
   const c = currentStep();
-  if (c) {
+  if (c && c.quest.place !== 'meridia') {
     const s = c.step;
     if (s.gate) return { text: gateText(s), ...P.merchants };
     const when = s.hours && !inHours(s) ? ` (${s.hours[0]}:00 to ${s.hours[1]}:00 only)` : '';
@@ -42,10 +56,27 @@ export function objective() {
     const at = s.x != null ? s : s.npc && (NAMED[s.npc] || NPC_AT[s.npc]);
     if (at) return { text: s.text + when, x: at.x, z: at.z };
   }
+  if (c?.quest.place === 'meridia' || (state.flags.ship && !state.flags.crossed && !c)) return { text: state.flags.crossed ? 'Your story goes on in Meridia: sail from your ship at the end of the Grand Pier' : 'Set sail for Meridia: your ship waits at the end of the Grand Pier', x: 0, z: -58 };
   if (n && n.where === "the Merchants' Guild" && level() >= n.level && state.gold >= n.fee) return { text: `Buy the ${n.property}`, ...P.merchants };
   if (n && n.id === 'ship' && level() >= n.level && state.gold >= n.fee) return { text: 'Ask Xi for a ship', x: 135, z: -20 };
   if (level() < 2) return { text: 'Earn your first level: ask a stallkeeper if they need a runner', ...P.market };
   return { text: n ? `Work toward the ${n.property}: jobs around town and trading` : 'Explore Sultan\'s Rest', ...(n && n.where === "the Merchants' Guild" ? P.merchants : P.market) };
+}
+
+// In Meridia: the Chapter Two story step if there is one (its NPC or place), otherwise the trading life.
+function meridiaObjective() {
+  const c = currentStep();
+  if (c && c.quest.place === 'meridia') {
+    const s = c.step;
+    const when = s.hours && !inHours(s) ? ` (${s.hours[0]}:00 to ${s.hours[1]}:00 only)` : '';
+    if (s.hidden && !c.revealed) return { text: s.text + when + '  ·  no marker: Q, then "Ask around" if you\'re stuck', x: null, z: null };
+    const at = s.x != null ? s : s.npc && (MERIDIA_FOLK[s.npc] || SPOTS[s.npc]);
+    if (at) return { text: s.text + when, x: at.x, z: at.z };
+    return { text: s.text + when, x: null, z: null };
+  }
+  const m = state.mer || {};
+  if (!m.home && !innPaid()) return { text: (m.innEnd || m.innUntil) ? 'Your week at the inn is up: pay Tobin before you sleep' : 'Take a room at the Brine & Barrel (30 gold a week)', ...SPOTS.inn };
+  return { text: 'Trade: sell at your pop-up stand, take contracts at the Exchange, sail goods between the cities', x: SPOTS.exchange.x, z: SPOTS.exchange.z };
 }
 
 const TAU = Math.PI * 2;
@@ -79,6 +110,7 @@ export function compass(root) {
     goal.textContent = `Next: ${o.text}`;
     if (state.marker) place(markPin, rel(state.marker.x, state.marker.z), `${dist(state.marker.x, state.marker.z)} m`); else markPin.style.display = 'none';
     for (const [el, p] of [[housePin, P.house], [standPin, P.stand]]) {
+      if (inMeridia && el === housePin && !state.mer?.home) { el.style.display = 'none'; continue; }
       if (dist(p.x, p.z) < 90) place(el, rel(p.x, p.z), p.name); else el.style.display = 'none';
     }
     questEvent('reach', { x: player.x, z: player.z }); questEvent('pack'); questEvent('flag');
@@ -89,7 +121,7 @@ export function compass(root) {
 }
 
 // ---------- The map ----------
-const BOUNDS = { x0: -200, x1: 200, z0: -90, z1: 305 };
+const BOUNDS = inMeridia ? { x0: -230, x1: 230, z0: -80, z1: 440 } : { x0: -200, x1: 200, z0: -90, z1: 305 };
 export function openMap(player, onClose) {
   const wrapEl = document.getElementById('map');
   wrapEl.replaceChildren();
@@ -107,7 +139,32 @@ export function openMap(player, onClose) {
   const sx = (x) => (BOUNDS.x1 - x) * k, sy = (z) => (BOUNDS.z1 - z) * k;
   const wx = (px) => BOUNDS.x1 - px / k, wz = (py) => BOUNDS.z1 - py / k;
 
+  function drawMeridia() {
+    g.fillStyle = '#cfd8a8'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#7fb3b8'; g.fillRect(0, sy(0), c.width, c.height - sy(0));
+    g.fillStyle = '#c9c4b2'; g.fillRect(sx(210), sy(34), 420 * k, 34 * k);
+    g.fillStyle = '#a07a4e'; for (const p of PIERS) g.fillRect(sx(p.x + p.w / 2), sy(0), p.w * k, -p.z0 * k);
+    // The rings: each terrace a little paler, the walls in stone.
+    for (const [R, col] of [[R_OUT, '#bfc79a'], [R_MID, '#c9cfa8'], [R_IN, '#d6d9bd']]) { g.fillStyle = col; g.beginPath(); g.arc(sx(C.x), sy(C.z), R * k, 0, TAU); g.fill(); }
+    g.fillStyle = '#c9c4b2'; g.fillRect(sx(6), sy(C.z), 12 * k, (C.z - 34) * k);
+    g.fillStyle = '#b8b0a0'; g.strokeStyle = 'rgba(60,50,40,0.35)'; g.lineWidth = 1;
+    for (const b of colliders) { const w = b.x1 - b.x0, d = b.z1 - b.z0; if (w * d < 18 || w * d > 6000) continue; g.fillRect(sx(b.x1), sy(b.z1), w * k, d * k); g.strokeRect(sx(b.x1), sy(b.z1), w * k, d * k); }
+    g.strokeStyle = '#6a6458'; g.lineWidth = 5;
+    for (const R of [R_OUT, R_MID, R_IN]) { const a = Math.asin(6 / R); g.beginPath(); g.arc(sx(C.x), sy(C.z), R * k, Math.PI / 2 + a, Math.PI / 2 - a + TAU); g.stroke(); }
+    g.textAlign = 'center';
+    for (const p of PLACES) {
+      if (p.id === 'house' && !state.mer?.home) continue;
+      if (p.id === 'store' && !state.mer?.store) continue;
+      const x = sx(p.x), y = sy(p.z);
+      g.fillStyle = ['house', 'stand', 'store'].includes(p.id) ? '#2e5fa8' : '#3a3a2a';
+      g.beginPath(); g.arc(x, y, 4, 0, TAU); g.fill();
+      g.font = `${['house', 'stand', 'store'].includes(p.id) ? 'bold ' : ''}14px Cinzel, Georgia, serif`; g.fillStyle = '#1e1e14'; g.fillText(p.name, x, y - 8);
+    }
+    g.font = 'bold 26px Cinzel, Georgia, serif'; g.fillStyle = 'rgba(30,30,20,0.7)'; g.fillText('MERIDIA', c.width / 2, sy(C.z + R_OUT + 30));
+    g.font = 'italic 18px "IM Fell English", Georgia, serif'; g.fillText('The Sea', c.width / 2, sy(-55));
+  }
   function draw() {
+    if (inMeridia) { drawMeridia(); drawYou(); return; }
     // Parchment, the sea, the beaches beyond the walls.
     g.fillStyle = '#e9d6a9'; g.fillRect(0, 0, c.width, c.height);
     g.fillStyle = '#7fb3b8'; g.fillRect(0, sy(0), c.width, c.height - sy(0));
@@ -148,6 +205,9 @@ export function openMap(player, onClose) {
     g.fillText("SULTAN'S REST", c.width / 2, sy(250));
     g.font = 'italic 18px "IM Fell English", Georgia, serif';
     g.fillText('The Sea', c.width / 2, sy(-60)); g.fillText('The Desert', c.width / 2, sy(300) - 4);
+    drawYou();
+  }
+  function drawYou() {
     // Your next goal, your marker, you.
     const o = objective();
     g.fillStyle = '#e7c35a'; g.strokeStyle = '#6a3a10'; g.lineWidth = 2;

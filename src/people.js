@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { makeRng, pick, range } from './noise.js';
 import { footHeight, walkable, PIERS } from './land.js';
+import { inMeridia } from './place.js';
 import { makeCharacter, charactersReady } from './characters.js';
 
 const rng = makeRng(2024);
@@ -207,14 +208,24 @@ function makeSimplePerson(race, role) {
 
 function roleName(role, race) {
   return {
-    local: 'of Sultan\'s Rest', merchant: 'merchant', sailor: 'sailor', dockhand: 'dockhand',
+    local: inMeridia ? 'of Meridia' : 'of Sultan\'s Rest', merchant: 'merchant', sailor: 'sailor', dockhand: 'dockhand',
     adventurer: 'adventurer', shopper: 'out shopping', traveler: 'traveler', guard: 'palace guard',
     pilot: 'harbor pilot of the warded passage', scribe: 'scribe of the palace',
   }[role] || role;
 }
 
 // Where people wander (x0, x1, z0, z1), how many, and what they're doing there.
-const ZONES = [
+// Where the crowd walks in Meridia (Chapter Two): the harbor's working district, the avenue up through the gates,
+// the market, and the streets of the outer and middle rings (the inner ring is quieter).
+const MERIDIA_ZONES = [
+  { name: 'quay', box: [-190, 190, 1.2, 12], n: 26, roles: ['sailor', 'dockhand', 'dockhand', 'merchant', 'traveler', 'local'] },
+  { name: 'works', box: [-180, 180, 36, 100], n: 14, roles: ['dockhand', 'dockhand', 'local', 'sailor'] },
+  { name: 'avenue', box: [-6, 6, 30, 190], n: 12, roles: ['local', 'shopper', 'traveler', 'guard'] },
+  { name: 'market', box: [-40, 40, 140, 175], n: 22, roles: ['shopper', 'shopper', 'local', 'merchant', 'traveler'] },
+  { name: 'outer streets', box: [-150, 150, 95, 230], n: 16, roles: ['local', 'local', 'dockhand', 'traveler'] },
+  { name: 'hilltop', box: [-50, 50, 200, 300], n: 8, roles: ['merchant', 'local', 'guard'] },
+];
+const SULTANS_ZONES = [
   { name: 'quay', box: [-170, 88, 1.2, 9], n: 26, roles: ['sailor', 'dockhand', 'merchant', 'traveler', 'adventurer', 'local', 'pilot'] },
   { name: 'market', box: [-36, 36, 8, 44], n: 26, roles: ['shopper', 'shopper', 'local', 'traveler', 'adventurer', 'merchant', 'sailor'] },
   { name: 'guilds', box: [-165, 80, 8, 14], n: 10, roles: ['adventurer', 'merchant', 'traveler', 'sailor'] },
@@ -222,6 +233,7 @@ const ZONES = [
   { name: 'streets', box: [-170, 170, 40, 285], n: 16, roles: ['local', 'local', 'traveler'] },
   { name: 'palace garden', box: [100, 170, -12, 38], n: 6, roles: ['local', 'merchant', 'guard'] },
 ];
+const ZONES = inMeridia ? MERIDIA_ZONES : SULTANS_ZONES;
 
 function randomPoint(z) {
   for (let i = 0; i < 20; i++) {

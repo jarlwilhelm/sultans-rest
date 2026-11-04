@@ -4,6 +4,7 @@
 //  - one job: sell so many goods at your own stand today, or put in a good shift at a job around town.
 // What's asked and paid grows with your level. They show in the quest menu (Daily tab) too.
 // The notices' wording is a DRAFT by Claude.
+import { scribbleMaterial } from '../doorlook.js';
 import * as THREE from 'three';
 import { state, level, addRenown, note, save } from './state.js';
 import { GOODS } from './economy.js';
@@ -107,14 +108,13 @@ addEventListener('lavine:sold-own', (e) => soldAtStand(e.detail.n));
 // The board itself, in the market, with this morning's notices pinned up.
 export function buildBoard(scene, readables, colliders, groundHeight, { x, z, ry }) {
   const wood = new THREE.MeshStandardMaterial({ color: '#6b4a2c', roughness: 0.85 });
-  const paper = new THREE.MeshStandardMaterial({ color: '#efe6cf', roughness: 0.95 });
   const g = new THREE.Group();
   const frame = new THREE.Mesh(new THREE.BoxGeometry(3, 1.9, 0.14), wood); frame.position.y = 1.75;
   const roof = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 0.7), wood); roof.position.set(0, 2.8, 0.05); roof.rotation.x = 0.25;
   g.add(frame, roof);
   for (const sx of [-1.4, 1.4]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.8, 0.16), wood); leg.position.set(sx, 1.4, 0); g.add(leg); }
-  [[-0.9, 1.85, 0.06], [0, 1.7, -0.04], [0.9, 1.9, 0.05], [-0.4, 1.25, 0.08], [0.6, 1.3, -0.06]].forEach(([px, py, rz]) => {
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.78), paper);
+  [[-0.9, 1.85, 0.06], [0, 1.7, -0.04], [0.9, 1.9, 0.05], [-0.4, 1.25, 0.08], [0.6, 1.3, -0.06]].forEach(([px, py, rz], i) => {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.78), scribbleMaterial(31 + i * 7 + Math.round(x)));   // writing on them (doorlook.js)
     p.position.set(px, py, -0.08); p.rotation.set(0, Math.PI, rz); g.add(p);
   });
   const head = document.createElement('canvas'); head.width = 512; head.height = 96;

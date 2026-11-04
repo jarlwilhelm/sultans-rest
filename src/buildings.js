@@ -1,5 +1,6 @@
 // Ale's house and garden, the palace gate's lock, and what's inside the tavern and guild halls.
 // Words on notes and in the ledger are Claude's drafts (marked DRAFT): rewrite them freely.
+import { scribbleMaterial } from './doorlook.js';
 import * as THREE from 'three';
 import { groundHeight, colliders, PALACE, PALACE_GATE } from './land.js';
 import { hollow, prop, lamp, wood } from './interiors.js';
@@ -148,9 +149,9 @@ export function furnish(scene) {
   const chair = prop(mess, 'Chair_1', a.x - 0.8, a.fy + 0.25, a.z + 0.6, { h: 0.95, ry: 0.7 });
   if (chair) chair.rotation.z = Math.PI / 2;
   for (const [bx, bz, r] of [[-1.6, -0.4, 0.3], [-1.2, 0.9, 1.4], [1.9, 0.6, 2.2], [0.3, -1.4, 0.8]]) prop(mess, 'Book1_Closed', a.x + bx, a.fy, a.z + bz, { h: 0.06, ry: r });
-  const paperMat = new THREE.MeshStandardMaterial({ color: '#ead8b0', roughness: 0.95, side: THREE.DoubleSide });
+  const papers = [1, 2, 3, 4].map(k => scribbleMaterial(200 + k, { paper: '#ead8b0', side: THREE.DoubleSide }));   // Ale's scattered notes, written on
   for (let i = 0; i < 14; i++) {
-    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.29), paperMat);
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.29), papers[i % 4]);
     sheet.rotation.set(-Math.PI / 2, 0, i * 1.7);
     sheet.position.set(a.x - 2 + (i * 0.97) % 4, a.fy + 0.012 + i * 0.001, a.z - 1.8 + (i * 1.31) % 3.6);
     mess.add(sheet);

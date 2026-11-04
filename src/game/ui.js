@@ -1,6 +1,8 @@
 // On-screen panels: the status bar, conversations, trading, dice rolls and the character sheet.
 // While a panel is open the mouse is free and you don't walk.
-import { state, rank, nextRank, RANKS, SKILLS, skillBonus, mod, packCount, clock, save, level, LEVELS, UNLOCKS } from './state.js';
+import { inMeridia } from '../place.js';
+import { innPaid, leftText } from '../meridia/inn.js';
+import { state, rank, nextRank, RANKS, SKILLS, skillBonus, mod, packCount, capacity, clock, save, level, LEVELS, UNLOCKS } from './state.js';
 import { GOODS, goodsFor, buyPrice, sellPrice, buy, sell, remember, bestSeen } from './economy.js';
 
 const $ = (id) => document.getElementById(id);
@@ -21,8 +23,19 @@ export function updateStatus() {
   $('st-gold').textContent = `${state.gold} gold`;
   $('st-rank').textContent = `Level ${level()} · ${rank().name}`;
   $('st-time').textContent = `Day ${state.day} · ${clock()}`;
-  $('st-pack').textContent = `Pack ${packCount()}/${rank().pack}`;
+  $('st-pack').textContent = `Pack ${packCount()}/${capacity()}`;
+  // Meridia: the room at the inn counts down with the world's clock (meridia/inn.js).
+  const room = $('st-room');
+  if (room) {
+    const show = inMeridia && !state.mer?.home && (state.mer?.innEnd || state.mer?.innUntil);
+    const paid = show && innPaid();
+    room.classList.toggle('hidden', !show);
+    if (show) room.textContent = paid ? `Room ${leftText().replace(/ (\d+ min)$/, '').replace(/ days? /, 'd ').replace(/ hours?/, 'h')}` : 'Room: unpaid';
+    if (roomWasPaid && show && !paid) toast('Your week at the Brine & Barrel is up. Pay Tobin before you sleep.', 6000);
+    roomWasPaid = !!paid;
+  }
 }
+let roomWasPaid = false;
 
 function openPanel(node, { onClose } = {}) {
   closePanel(true);
@@ -141,13 +154,13 @@ export function trade(market, { title, onDone, renownFor, where: place }) {
   const where = place || title;
   const ago = (d) => d === state.day ? 'today' : d === state.day - 1 ? 'yesterday' : `${state.day - d} days ago`;
   function render() {
-    info.textContent = `You have ${state.gold} gold · pack ${packCount()}/${rank().pack} · prices move as you buy and sell`;
+    info.textContent = `You have ${state.gold} gold · pack ${packCount()}/${capacity()} · prices move as you buy and sell`;
     for (const g of new Set([...goodsFor(market), ...Object.keys(state.pack)])) remember(market, where, g, buyPrice(market, g), sellPrice(market, g));
     left.replaceChildren(el('h3', '', 'They sell'));
     for (const g of goodsFor(market)) {
       const p = buyPrice(market, g);
       if (p == null) continue;
-      const room = rank().pack - packCount();
+      const room = capacity() - packCount();
       left.append(row(g, p, [
         btn('Buy 1', () => act(buy(market, g, 1)), state.gold < p || room < 1),
         btn('Buy 5', () => act(buy(market, g, 5)), state.gold < p || room < 1),
@@ -278,7 +291,7 @@ export async function inventory(pickGood = invPick) {
   const { ITEMS } = await import('./items.js');
   const box = el('div', 'sheet inventory');
   box.append(el('div', 'who', 'Inventory'));
-  const used = packCount(), room = rank().pack;
+  const used = packCount(), room = capacity();
   box.append(el('p', 'rankline', `${state.gold} gold · pack ${used} / ${room}`));
   const bar = el('div', 'bar'); const fill = el('div', 'fill'); fill.style.width = `${Math.min(1, used / room) * 100}%`; bar.append(fill);
   box.append(bar);
@@ -306,6 +319,11 @@ export async function inventory(pickGood = invPick) {
     info.append(el('div', 'stat', `${n} in your pack · from ${G.from.replace(' (passage escort)', '')} · ${G.kind}`));
     info.append(el('div', 'stat', `Usual price about ${G.base} gold each · about ${G.base * n} gold for all ${n}`));
     if (paid && paid.n > 0) info.append(el('div', 'stat', `You paid ${Math.round(paid.cost / paid.n)} gold each, on average`));
+    if (invPick === 'levinite' && state.place === 'meridia') {
+      const take = el('button', 'opt'); take.append(el('span', 'num', '✦'), el('span', '', 'Take it (the night will be gone)'));
+      take.onclick = () => { closePanel(true); import('./levinite.js').then(L => L.useLevinite()); };
+      info.append(take);
+    }
     const best = bestSeen(invPick), ago = (d) => d === state.day ? 'today' : d === state.day - 1 ? 'yesterday' : `${state.day - d} days ago`;
     if (best.sell) info.append(el('div', 'stat', `Best price you've seen to sell: ${best.sell.price} at ${best.sell.where} (${ago(best.sell.day)})`));
     if (best.buy) info.append(el('div', 'stat', `Cheapest you've seen to buy: ${best.buy.price} at ${best.buy.where} (${ago(best.buy.day)})`));
@@ -352,7 +370,7 @@ export function sheet() {
   }
   const pack = el('div', 'col');
   pack.append(el('h3', '', 'Pack'));
-  pack.append(el('div', 'stat', `${packCount()} / ${rank().pack} · I for your inventory`));
+  pack.append(el('div', 'stat', `${packCount()} / ${capacity()} · I for your inventory`));
   pack.append(el('h3', '', 'Standing'));
   for (const [k, v] of Object.entries(state.reputation)) pack.append(el('div', 'stat', `${k[0].toUpperCase() + k.slice(1)}: ${v}`));
   grid.append(abil, sk, pack);

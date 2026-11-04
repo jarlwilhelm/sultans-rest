@@ -68,7 +68,11 @@ export function favorOptions(name) {
       toast('+500 gold', 3000);
       return done(['He sets down a heavy bag. "Five hundred. Spend it on something your brother would have laughed at."']);
     } },
-    { label: state.spouse ? 'Make my spouse disappear' : 'Find me someone to marry', hint: `Chapter Two, level ${MARRIAGE_LEVEL}`, disabled: true },
+    { label: state.spouse ? 'Make my spouse disappear' : 'Find me someone to marry', hint: level() < MARRIAGE_LEVEL ? `level ${MARRIAGE_LEVEL}` : none ? 'no coins left' : '1 coin', disabled: level() < MARRIAGE_LEVEL || none, do: async () => {
+      spend();
+      const M = await import('./marriage.js');
+      return done([state.spouse ? M.divorce() : M.redmanMarriage()]);
+    } },
     { label: 'Nothing, for now', do: () => done([`"Then keep your coins." ${purse()} in the purse. "I'll see you again. Not soon."`]) },
   ];
 }

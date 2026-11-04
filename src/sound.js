@@ -1,11 +1,18 @@
 // The harbor's sound, made live with the browser's audio engine (no sound files):
 // waves, a crowd murmur, gulls and a distant harbor bell. Louder by the water, quieter uphill.
 const pref = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+import { inMeridia } from './place.js';
 export class HarborSound {
   muted = pref('lavine-sound') === 'off';
   start() {
     if (this.ctx) return;
     const ctx = this.ctx = new AudioContext();
+    // Quiet when the game isn't on screen (another tab, a minimized window): the user heard the music playing
+    // with the game in the background (2026-11-04). Everything picks up again when you come back.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { ctx.suspend(); this.audio?.pause(); }
+      else { ctx.resume(); if (this.audio && !this.muted && this.audio.src) this.audio.play().catch(() => {}); }
+    });
     this.master = ctx.createGain();
     this.master.gain.value = 0.8;
     this.master.connect(ctx.destination);
@@ -58,9 +65,20 @@ export class HarborSound {
   // Quiet filler music (Pixabay, free to use): tracks in turn with a little silence between,
   // so it sits under the harbor sounds instead of on top of them. Replace with your own later.
   music() {
-    const tracks = ['desert-serenity', 'echoes-of-the-desert', 'desert-wind-meditation', 'desert-voices', 'ancient-ambient'];
+    // Each city has its own music: desert pieces in Sultan's Rest, fantasy folk and tavern tunes in Meridia
+    // (CC0, assets/music/meridia/LICENSE.txt; the user's ask, 2026-11-04).
+    const tracks = inMeridia ? ['meridia/old-tower-inn', 'meridia/bards-tale', 'meridia/minstrel-dance', 'meridia/kings-feast']
+      : ['desert-serenity', 'echoes-of-the-desert', 'desert-wind-meditation', 'desert-voices', 'ancient-ambient'];
     let i = Math.floor(Math.random() * tracks.length);
-    const a = this.audio = new Audio();
+    // Only ever one music at a time (2026-11-04, the user heard two in Meridia): a player left over in this page
+    // stops, and another open game tab (same browser) is told to go quiet.
+    try { window.__tqMusic?.pause(); } catch { /* fine */ }
+    const a = this.audio = window.__tqMusic = new Audio();
+    try {
+      const ch = new BroadcastChannel('trader-quest-music');
+      ch.onmessage = () => { a.pause(); };
+      a.addEventListener('play', () => ch.postMessage('playing'));
+    } catch { /* fine */ }
     const mv = pref('lavine-music');
     a.volume = mv != null ? +mv : 0.18;
     const next = () => { a.src = `assets/music/${tracks[i % tracks.length]}.mp3`; i++; a.play().catch(() => {}); };

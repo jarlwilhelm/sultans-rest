@@ -3,7 +3,7 @@
 import { groundHeight, QUAY_Y } from './land.js';
 import { prop, instanced } from './interiors.js';
 import { plants } from './city.js';
-import { addLanterns } from './fire.js';
+import { addLanterns, addCandles } from './fire.js';
 import { makeRng, pick, range } from './noise.js';
 
 // What lies on the table for each kind of stall: [model, height in metres].
@@ -18,6 +18,13 @@ const CLOTHS = ['#7a4ab0', '#b8382b', '#2e6c8e', '#d7a33a', '#2f9c9a', '#8e3b6c'
 
 export function placeGoods(scene) {
   instanced(scene, 'market_stall', scene.userData.marketStalls);
+  // Each stall's little candle lantern (hanging at the back corner of the model: -1.5, 2.08, -1.4) gives a dim light
+  // at night (2026-11-04, the user: 'the stands have candles but no light'). Small, weak fires: fire.js moves the
+  // few real lights onto the ones nearest you, the rest glow.
+  addCandles(scene, scene.userData.marketStalls.map(st => {
+    const k = st.s || 1, ry = st.ry || 0, lx = -1.5 * k, lz = -1.4 * k;
+    return { x: st.x + Math.cos(ry) * lx + Math.sin(ry) * lz, y: st.y + 2.08 * k, z: st.z - Math.sin(ry) * lx + Math.cos(ry) * lz };
+  }));
   instanced(scene, 'palm', plants.palms);
   const lamps = scene.userData.streetLamps || [];
   instanced(scene, 'street_lamp', lamps);

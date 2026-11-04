@@ -11,9 +11,12 @@ import { alleyChase } from './alleychase.js';
 import { wardKeeper } from './wardkeeper.js';
 import { bones } from './bones.js';
 import { twentyOne } from './twentyone.js';
+import { customs } from './customs.js';
+import { standoff } from './standoff.js';
 
 const GAMES = { 'Market Run': marketRun, 'Cargo Hold': cargoHold, 'Gull Patrol': gullPatrol, 'Glass Kiln': glassKiln,
-  'Alley Chase': alleyChase, 'Ward Keeper': wardKeeper, 'Bones': bones, 'Twenty-One': twentyOne };
+  'Alley Chase': alleyChase, 'Ward Keeper': wardKeeper, 'Bones': bones, 'Twenty-One': twentyOne,
+  'The Customs House': customs, 'Standoff': standoff };
 export const arcade = { active: false };
 
 export function play(name, opts = {}) {
@@ -45,7 +48,9 @@ export function play(name, opts = {}) {
     let phase = 'title', inst = null, result = null, last = performance.now();
     const api = {
       W, H, keys, pressed, mouse, opts,
-      finish(res) { result = res; phase = 'results'; },
+      // opts.pay (npcs.js runGame) works out the real pay (caps, half pay, Casey's luck) BEFORE the card shows it,
+      // so the gold on the card is the gold you get (2026-11-04, the user: bounties said far more than they paid).
+      finish(res) { result = opts.pay ? opts.pay(res) : res; phase = 'results'; },
     };
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;

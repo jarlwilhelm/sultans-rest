@@ -2,6 +2,9 @@
 // Every line here is a DRAFT by Claude, written to fit the guide: rewrite freely.
 import { state, level, note, save, addRenown, nextRank, RANKS } from './state.js';
 import { toast, updateStatus, rollCheck, talk } from './ui.js';
+import { QUESTS_2, CHOICES_2, side } from '../meridia/story.js';
+// Which city you're in (Chapter Two's quests only count in Meridia).
+const here = () => state.place || 'sultans_rest';
 
 // People with names (where they stand is in buildings.js).
 export const NAMED = {
@@ -96,10 +99,13 @@ export const QUESTS = [
   { id: 'ship', title: 'A Ship of Your Own', level: 10, steps: [
     { text: 'Petition Xi for a ship (level 10 and 5,000 gold)', npc: 'steward', flag: 'ship', x: 135, z: -36 },
   ] },
+  // Chapter Two: Meridia (meridia/story.js).
+  ...QUESTS_2,
 ];
 
 // The conversations with choices (a step's `choices`). Each returns the panel to show; `done()` finishes the step.
 const CHOICES = {
+  ...CHOICES_2,
   barkeep: (label, done) => {
     const info = () => { done(); return { name: label, text: [
       '"Ale? Quiet man. Kind. Always paid his tab." He wipes the same spot on the bar for a while.',
@@ -214,6 +220,8 @@ function advance(q) {
   if (st.letter) state.flags.letter = true;
   if (st.setFlag) state.flags[st.setFlag] = true;
   if (st.setFlag === 'breakin') state.flags.ledgerStolen = true;
+  if (st.give) state.pack[st.give[0]] = (state.pack[st.give[0]] || 0) + st.give[1];
+  if (st.sides) for (const [who, n] of Object.entries(st.sides)) side(who, n);
   if (st.reward) import('./items.js').then(m => m.give(st.reward, q.title));
   if (st.arrive) talk({ name: q.title, text: st.arrive, options: [{ label: 'Go on' }] });
   s.step++; s.seen = [];
@@ -229,6 +237,7 @@ export function questEvent(type, data) {
   const c = currentStep();
   if (!c) return;
   const { quest, step } = c;
+  if (quest.place && quest.place !== here()) return;
   if (step.hours && !inHours(step)) return;
   const take = () => {
     if (!step.take) return true;
@@ -252,6 +261,7 @@ export function questEvent(type, data) {
   }
   else if (type === 'pack' && step.gate && state.rank >= step.gate) advance(quest);
   else if (type === 'flag' && step.flag && state.flags[step.flag]) advance(quest);
+  else if (type === 'flag' && step.flagsAny && step.flagsAny.some(f => state.flags[f])) advance(quest);
   else if (type === 'sneak' && (step.follow || step.overhear)) advance(quest);
 }
 
@@ -260,10 +270,11 @@ export function questOption(npcKey, label) {
   const c = currentStep();
   if (!c || c.step.npc !== npcKey || !(c.step.talk || c.step.choices)) return null;
   const { quest, step } = c;
+  if (quest.place && quest.place !== here()) return null;
   if (!inHours(step)) return { label: `${quest.title}: (not now. ${step.hours[0] > 12 ? 'Come back at dusk' : 'Come back in the morning'})`, disabled: true };
   if (step.take && (state.pack[step.take[0]] || 0) < step.take[1]) return { label: `${quest.title}: (you need ${step.take[1]} ${step.take[0]}s)`, disabled: true };
   if (step.xiLetter) return { label: 'Give Xi your brother\'s letter', hint: quest.title, do: () => xiLetterScene(quest, label) };
-  if (step.choices) return { label: quest.title, hint: 'Your story', do: () => CHOICES[step.choices](label, () => advance(quest)) };
+  if (step.choices) return { label: quest.title, hint: 'Your story', do: () => CHOICES[step.choices](label, () => advance(quest), (game, test, onWin, l, fail) => { closePanelSoon(); playFor(game, test, onWin, l, fail); }) };
   return {
     label: quest.title, hint: 'Your story',
     do: () => {

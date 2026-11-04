@@ -9,6 +9,9 @@ import { questOption, questEvent, NAMED, setPlayHelpers } from './quests.js';
 import { dailyOption, shiftDone } from './daily.js';
 import { craftNode, enchantNode, CRAFT_LEVEL, ENCHANT_LEVEL } from './craft.js';
 import { firstMeeting } from './redman.js';
+import { meridiaTalk } from '../meridia/talk.js';
+import { checkContracts, contractOptions } from './contracts.js';
+import { caseyLuck, spouseMorning, spouseGossip } from './marriage.js';
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const leave = { label: 'Leave' };
@@ -30,18 +33,26 @@ const PAY_CAP = { 'Market Run': 10, 'Cargo Hold': 10, 'Gull Patrol': 10, 'Glass 
 async function runGame(name, opts, who) {
   closePanel(true);
   const gambling = name === 'Bones' || name === 'Twenty-One';
-  const res = await play(name, gambling ? tableOpts(name) : opts);
+  // Work pays by how advanced the job is (capped per run), takes an hour, and pays half from the third
+  // run of the same job in one day ("the quartermaster has less work for you"). docs/chapter-one-v2.md
+  // Worked out inside the mini-game, before its results card, so the card shows the real pay.
+  const pay = (r) => {
+    const today = state.shifts?.day === state.day ? state.shifts : (state.shifts = { day: state.day, n: {} });
+    const n = (today.n[name] || 0) + 1;
+    r = { ...r };
+    if (r.gold > 0) {
+      const cap = PAY_CAP[name];
+      if (cap != null && r.gold > cap) { r.gold = cap; r.summary = (r.summary || '') + ` (The most this job pays is ${cap} gold.)`; }
+      if (n >= 3) { r.gold = Math.floor(r.gold / 2); r.summary = (r.summary || '') + ' (Third shift today: half pay.)'; }
+    }
+    return caseyLuck(r, PAY_CAP[name]);                       // married to Casey: sometimes the best pay (marriage.js)
+  };
+  const res = await play(name, gambling ? tableOpts(name) : { ...opts, pay });
   if (!res) return;
   if (gambling) { const t = tally(name); t.hands += res.hands || 0; t.net += res.gold || 0; }
   else {
-    // Work pays by how advanced the job is (capped per run), takes an hour, and pays half from the third
-    // run of the same job in one day ("the quartermaster has less work for you"). docs/chapter-one-v2.md
     const today = state.shifts?.day === state.day ? state.shifts : (state.shifts = { day: state.day, n: {} });
-    const n = today.n[name] = (today.n[name] || 0) + 1;
-    if (res.gold > 0) {
-      res.gold = Math.min(res.gold, PAY_CAP[name] ?? res.gold);
-      if (n >= 3) { res.gold = Math.floor(res.gold / 2); res.summary = (res.summary || '') + ' (Third shift today: half pay.)'; }
-    }
+    today.n[name] = (today.n[name] || 0) + 1;
     state.minute += 60; state.awake = (state.awake || 0) + 60;
   }
   if (res.gold) { state.gold += res.gold; state.earned += res.gold; }
@@ -57,6 +68,9 @@ async function runGame(name, opts, who) {
   void who;
   return res;
 }
+
+// Start a job from something in the world (the Customs House door in Meridia).
+export const playJob = (name, opts = {}) => runGame(name, opts);
 
 // ---------- Stallkeepers ----------
 function stall(npc) {
@@ -166,6 +180,8 @@ function guild(npc) {
       const ready = level() >= n.level, rich = state.gold >= n.fee;
       options.push({ label: `Buy the deed: ${n.property}`, hint: `Level ${n.level}, ${n.fee} gold`, disabled: !(ready && rich), do: () => buyDeed(npc, n) });
     }
+    // Chapter Two: trade contracts between the two cities (contracts.js), once you've sailed to Meridia.
+    if (state.flags.crossed && /Guildmaster/.test(npc.label)) options.push(...contractOptions('sultans_rest', npc.label));
     options.push({ label: 'How do I get ahead here?', do: () => ({ name: npc.label, text: [
       `Everyone starts with nothing. Then: ${RANKS.slice(1, 5).map(r => r.property).join(', then ')}. After that, only the Steward can give you a ship.`,
       'Gold and experience come from work around town (deliveries, loading ships, guild trials, bounties) and from trading.',
@@ -246,6 +262,9 @@ export function sleep() {
 // Things that happen at the start of each day.
 export function newDay() {
   collectLoan();
+  checkContracts();
+  spouseMorning();
+  import('../meridia/watch.js').then(w => w.morningWatch());
   const inc = rank().income;
   if (inc > 0) {
     const take = Math.round(inc * (0.8 + Math.random() * 0.4));
@@ -319,7 +338,7 @@ function crowd(npc) {
   const role = npc.role || 'local';
   const here = ABOUT[PLACE];
   return { name: npc.label, text: [Math.random() < 0.35 ? shopTalk() : pick(ROLE_LINES[role] || ROLE_LINES.local)], options: [
-    { label: 'Heard any news?', do: () => { const r = Math.random(); return { name: npc.label, text: [r < 0.35 ? tradeTip() : r < 0.47 ? pick(HUSHED) : r < 0.57 ? pick(WIDER) : pick(RUMORS)], options: [leave] }; } },
+    { label: 'Heard any news?', do: () => { const r = Math.random(), g = spouseGossip(); return { name: npc.label, text: [g && r < 0.3 ? g : r < 0.35 ? tradeTip() : r < 0.47 ? pick(HUSHED) : r < 0.57 ? pick(WIDER) : pick(RUMORS)], options: [leave] }; } },
     { label: `What do people make of ${here.who}?`, do: () => ({ name: npc.label, text: [pick(here.lines)], options: [leave] }) },
     ...(role === 'pilot' ? [wardOption()] : []),
     leave,
@@ -403,7 +422,7 @@ function redmanEnd(npc, line) {
 
 export function interact(npc) {
   const by = {
-    stall, ship, guild, steward, inn, bones, crowd, guard: crowd, stranger, named,
+    stall, ship, guild, steward, inn, bones, crowd, guard: crowd, stranger, named, meridia: meridiaTalk,
   }[npc.kind] || crowd;
   const node = by(npc);
   // Whoever the story needs next gets an extra option, just before "Leave".
@@ -417,7 +436,7 @@ export function interact(npc) {
 
 // Which story character this is.
 function questKey(npc) {
-  if (npc.kind === 'named') return npc.id;
+  if (npc.kind === 'named' || npc.kind === 'meridia') return npc.id;
   if (npc.kind === 'guild') return { merchants: /Guildmaster/.test(npc.label) ? 'guildmaster' : 'clerk', transmuters: 'transmuter', adventurers: 'bounty', mariners: 'mariners' }[npc.guild];
   return npc.kind;
 }

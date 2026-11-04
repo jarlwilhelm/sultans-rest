@@ -340,8 +340,9 @@ export function buildShips(scene, lookables) {
   return (t, dt) => {
     for (const sh of ships) {
       sh.s.position.y = Math.sin(t * 0.8 + sh.phase) * 0.15;
-      sh.s.rotation.z = Math.sin(t * 0.6 + sh.phase) * 0.025;
-      sh.s.rotation.x = Math.sin(t * 0.5 + sh.phase * 2) * 0.012;
+      // The whole rotation is set each frame: something that touches the quaternion (three.js then reads a half
+      // turn as x = z = 180 degrees) plus a rocking z alone turned ships upside down (2026-11-04, the user saw them).
+      sh.s.rotation.set(Math.sin(t * 0.5 + sh.phase * 2) * 0.012, sh.rot, Math.sin(t * 0.6 + sh.phase) * 0.025);
       if (sh.s.userData.flag) sh.s.userData.flag.rotation.y = Math.PI / 2 + Math.sin(t * 3 + sh.phase) * 0.25;
     }
     for (const m of movers) {
@@ -349,7 +350,7 @@ export function buildShips(scene, lookables) {
       const span = 950;
       const d = ((t * 4 + m.offset) % span);
       m.s.position.set(m.x, Math.sin(t * 0.7 + m.offset) * 0.25, m.dir > 0 ? -1050 + d : -100 - d);
-      m.s.rotation.z = Math.sin(t * 0.6 + m.offset) * 0.04;
+      m.s.rotation.set(0, m.dir > 0 ? 0 : Math.PI, Math.sin(t * 0.6 + m.offset) * 0.04);
     }
     if (steamer) {
       const src = steamer.s.localToWorld(steamer.s.userData.smoke.clone());

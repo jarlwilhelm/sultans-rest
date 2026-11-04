@@ -41,5 +41,6 @@ export function daylight(scene, sky) {
     water.uniforms.light.value = 0.25 + 0.75 * day;
     windows.emissiveIntensity = night * 1.4;
     if (scene.userData.plotWindows) scene.userData.plotWindows.emissiveIntensity = night * 1.4;
+    if (scene.userData.darkMat) scene.userData.darkMat.emissiveIntensity = night * 1.4;
   };
 }
