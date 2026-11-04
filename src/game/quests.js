@@ -323,7 +323,9 @@ export function questLog() {
     const locked = level() < q.level;
     return { title: q.title, level: q.level, done: s.done, locked, steps: q.steps.map((st, i) => ({
       text: st.gate ? gateText(st) : st.text, done: s.done || i < s.step, current: !s.done && i === s.step,
-      hidden: !!st.hidden && s.reveal !== i, revealedHint: st.hidden && s.reveal === i ? st.hint : null })) };
+      hidden: !!st.hidden && s.reveal !== i, revealedHint: st.hidden && s.reveal === i ? st.hint : null,
+      hours: st.hours || null, open: inHours(st), gate: st.gate ? { have: Math.min(state.gold, RANKS[st.gate].fee), need: RANKS[st.gate].fee, level: RANKS[st.gate].level } : null,
+      marked: !st.hidden || s.reveal === i })) };
   });
 }
 

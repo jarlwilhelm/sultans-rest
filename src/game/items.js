@@ -7,14 +7,14 @@ import { toast } from './ui.js';
 // how: 'buy' (at the tailor, outfitter or barber), 'story' (earned), 'special' (a challenge).
 export const ITEMS = {
   // Outfits (the body you wear). The one you chose at the start is always yours.
-  'outfit:men_Farmer': { slot: 'base', value: 'men_Farmer', name: 'Farmer\'s clothes', how: 'buy', price: 20, level: 1 },
-  'outfit:women_Medieval': { slot: 'base', value: 'women_Medieval', name: 'Townswoman\'s dress', how: 'buy', price: 20, level: 1 },
-  'outfit:men_Worker': { slot: 'base', value: 'men_Worker', name: 'Dock worker\'s gear (him)', how: 'buy', price: 20, level: 1 },
-  'outfit:women_Worker': { slot: 'base', value: 'women_Worker', name: 'Dock worker\'s gear (her)', how: 'buy', price: 20, level: 1 },
-  'outfit:men_Adventurer': { slot: 'base', value: 'men_Adventurer', name: 'Adventurer\'s leathers (him)', how: 'buy', price: 60, level: 3 },
-  'outfit:women_Adventurer': { slot: 'base', value: 'women_Adventurer', name: 'Adventurer\'s leathers (her)', how: 'buy', price: 60, level: 3 },
-  'outfit:women_Witch': { slot: 'base', value: 'women_Witch', name: 'Robes of the passage', how: 'buy', price: 120, level: 5 },
-  'outfit:men_King': { slot: 'base', value: 'men_King', name: 'Noble\'s robes', how: 'buy', price: 600, level: 9 },
+  'outfit:Male_Peasant': { slot: 'base', value: 'Male_Peasant', name: 'Peasant\'s tunic (him)', how: 'buy', price: 20, level: 1 },
+  'outfit:Female_Peasant': { slot: 'base', value: 'Female_Peasant', name: 'Peasant\'s bodice (her)', how: 'buy', price: 20, level: 1 },
+  'outfit:Male_Ranger': { slot: 'base', value: 'Male_Ranger', name: 'Ranger\'s hood and leathers (him)', how: 'buy', price: 60, level: 3 },
+  'outfit:Female_Ranger': { slot: 'base', value: 'Female_Ranger', name: 'Ranger\'s hood and leathers (her)', how: 'buy', price: 60, level: 3 },
+  'outfit:Male_Robe': { slot: 'base', value: 'Male_Robe', name: 'Merchant\'s robe (him)', how: 'buy', price: 40, level: 2 },
+  'outfit:Female_Robe': { slot: 'base', value: 'Female_Robe', name: 'Merchant\'s robe (her)', how: 'buy', price: 40, level: 2 },
+  'outfit:noble_him': { slot: 'base', value: 'Male_Robe', trim: 'gold', name: 'Noble\'s robe, gold sash (him)', how: 'buy', price: 600, level: 9 },
+  'outfit:noble_her': { slot: 'base', value: 'Female_Robe', trim: 'gold', name: 'Noble\'s robe, gold sash (her)', how: 'buy', price: 600, level: 9 },
   // Dyes (the colour of your clothes).
   'dye:0': { slot: 'hue', value: 0, name: 'Undyed', how: 'buy', price: 0, level: 1 },
   'dye:0.08': { slot: 'hue', value: 0.08, name: 'Saffron dye', how: 'buy', price: 15, level: 1 },
@@ -44,9 +44,22 @@ export const ITEMS = {
   'held:coin': { slot: 'held', value: 'Coin', name: 'The faceless coin', how: 'story', hint: 'A gift from a stranger' },
   'held:tongs': { slot: 'held', value: 'tongs', name: 'Golden tongs', how: 'special', hint: 'Clear three walls in the Glass Kiln' },
   'held:krakentooth': { slot: 'held', value: 'tooth', name: 'Kraken-tooth charm', how: 'special', hint: 'Hold the wards for six waves' },
+  // Only Redman gives these (a favor for a faceless coin); hidden until you have them.
+  'hat:redfeather': { slot: 'hat', value: 'redfeather', name: 'A black hat with a red feather', how: 'redman' },
+  'hat:silvercirclet': { slot: 'hat', value: 'silvercirclet', name: 'A silver circlet with a violet stone', how: 'redman' },
+  'held:compass': { slot: 'held', value: 'compass', name: 'A compass that doesn\'t point north', how: 'redman' },
+  // Keepsakes you carry rather than wear.
+  'keep:purse': { slot: 'keepsake', value: 'purse', name: 'Redman\'s purse of faceless coins', how: 'story' },
   // The barber: hair colour, beard.
   ...Object.fromEntries(['#1a1410', '#3a2618', '#6a4a2a', '#a87a3a', '#d9c08a', '#8a2a1a', '#e8e4dc', '#555555', '#2f6b5a', '#4b1f6b']
     .map((c, i) => [`hair:${c}`, { slot: 'hair', value: c, name: ['Black', 'Dark brown', 'Brown', 'Chestnut', 'Sandy blond', 'Red', 'White', 'Grey', 'Sea green', 'Royal violet'][i], how: 'barber', price: i >= 8 ? 40 : 10, level: i >= 8 ? 4 : 1 }])),
+  // Haircuts (the newer outfits: peasant and ranger).
+  'style:Hair_SimpleParted': { slot: 'style', value: 'Hair_SimpleParted', name: 'Parted', how: 'barber', price: 10, level: 1 },
+  'style:Hair_Buzzed': { slot: 'style', value: 'Hair_Buzzed', name: 'Cropped', how: 'barber', price: 10, level: 1 },
+  'style:Hair_Long': { slot: 'style', value: 'Hair_Long', name: 'Long', how: 'barber', price: 10, level: 1 },
+  'style:Hair_Buns': { slot: 'style', value: 'Hair_Buns', name: 'Buns', how: 'barber', price: 10, level: 1 },
+  'style:Hair_BuzzedFemale': { slot: 'style', value: 'Hair_BuzzedFemale', name: 'Short', how: 'barber', price: 10, level: 1 },
+  'style:none': { slot: 'style', value: null, name: 'Shaved head', how: 'barber', price: 5, level: 1 },
   'beard:on': { slot: 'beard', value: true, name: 'Grow a beard', how: 'barber', price: 10, level: 1 },
   'beard:off': { slot: 'beard', value: false, name: 'Clean shave', how: 'barber', price: 5, level: 1 },
 };
@@ -59,7 +72,10 @@ export const owned = (id) => {
   if (it.slot === 'base' && state.look?.base === it.value) return true;
   return false;
 };
-export const equipped = (id) => { const it = ITEMS[id]; const v = state.look?.[it.slot]; return (v ?? null) === (it.value ?? null); };
+export const equipped = (id) => {
+  const it = ITEMS[id]; const v = state.look?.[it.slot];
+  return (v ?? null) === (it.value ?? null) && (it.slot !== 'base' || (it.trim ?? null) === (state.look?.trim ?? null));
+};
 
 export function give(id, why) {
   state.owned ??= [];
@@ -82,7 +98,7 @@ export function buy(id) {
 
 export function wear(id) {
   const it = ITEMS[id];
-  state.look = { ...state.look, [it.slot]: it.value };
+  state.look = { ...state.look, [it.slot]: it.value, ...(it.slot === 'base' ? { trim: it.trim ?? null } : {}) };
   save();
   dispatchEvent(new CustomEvent('lavine:look'));
 }

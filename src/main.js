@@ -1,7 +1,8 @@
-// Sultan's Rest: puts the scene together, lets you walk around, and runs the game on top.
+// Trader Quest: puts the scene together, lets you walk around, and runs the game on top.
 import * as THREE from 'three';
 import { buildSky, buildLights, buildWater, buildPassage, buildKraken, HAZE } from './sea.js';
-import { buildLand, footHeight, walkable } from './land.js';
+import { buildLand, footHeight, walkable, colliders, groundHeight } from './land.js';
+import { buildBoard } from './game/daily.js';
 import { buildCity } from './city.js';
 import { buildShips } from './ships.js';
 import { buildPeople } from './people.js';
@@ -11,13 +12,15 @@ import { skyLighting, effects, dust } from './look.js';
 import { loadCharacters, makeStatue, makeCharacter } from './characters.js';
 import { RACES } from './people.js';
 import { state, save } from './game/state.js';
-import { busy, closePanel, panelKey, sheet, journal, toast, updateStatus, talk } from './game/ui.js';
+import { busy, ui, closePanel, panelKey, sheet, journal, inventory, toast, updateStatus, talk } from './game/ui.js';
 import { resetGame, slot } from './game/state.js';
 import { titleMenu } from './menu.js';
 import { interact, newDay } from './game/npcs.js';
 import { arcade } from './minigames/index.js';
 import { daylight } from './daylight.js';
 import { strangerWatch } from './game/stranger.js';
+import { seizureWatch } from './game/seizure.js';
+import { crossing, startCrossing } from './crossing.js';
 import { buildProperty } from './property.js';
 import { buildAlesHouse, furnish, lockPalace } from './buildings.js';
 import { placeGoods } from './goods.js';
@@ -66,6 +69,7 @@ async function main() {
   const updatePassage = buildPassage(scene);
   const updateKraken = buildKraken(scene);
   buildCity(scene);
+  buildBoard(scene, readables, colliders, groundHeight, { x: -40, z: 8, ry: 0 });   // the trade notices (daily quests): on the quay between the market and your stand
   buildAlesHouse(scene);
   lockPalace(scene);
   const lookables = [];
@@ -92,7 +96,7 @@ async function main() {
     if (!state.look && state.flags.intro) {
       const race = (state.race || 'Human').toLowerCase();
       const r = RACES[race] ? race : 'human';
-      state.look = { race: r, base: 'men_Adventurer', skin: RACES[r].skin[Math.min(1, RACES[r].skin.length - 1)], hair: '#3a2618', hue: 0 };
+      state.look = { race: r, base: 'Male_Peasant', skin: RACES[r].skin[Math.min(1, RACES[r].skin.length - 1)], hair: '#3a2618', hue: 0 };
       save();
       setTimeout(() => toast('You can change how you look at Ale\'s wardrobe, the tailor or the barber.', 7000), 3000);
     }
@@ -107,6 +111,7 @@ async function main() {
   addEventListener('lavine:look', buildAvatar);
   const updateDaylight = daylight(scene, sky, renderer);
   const stranger = strangerWatch(scene, lookables);
+  const seizure = seizureWatch(scene);              // the Meridian cargo seized on the quay (game/seizure.js)
   const sneak = sneakWatch(scene);                 // following, overhearing, the watcher (game/sneak.js)
   sortScene(scene);                  // the city in one group, each room's things in its own (rooms.js)
   const fireUpdate = fireLights(scene, 4);   // flames, sparks, and real light on the nearest fires and lanterns (fire.js)
@@ -116,6 +121,9 @@ async function main() {
   // ---------- The player ----------
   // Start at the end of the Grand Pier, looking back at the city.
   const player = { x: 0, z: -56, yaw: Math.PI, pitch: 0.04, y: 0, bob: 0, jump: 0, vy: 0 };
+  // For testing on this computer only (the browser console): lavineDebug.player.x = ... to stand somewhere.
+  if (location.hostname === 'localhost') window.lavineDebug = { player, scene, camera };
+  addEventListener('lavine:crossing', () => startCrossing(scene, () => { player.x = 0; player.z = -60; player.yaw = Math.PI; }));
   player.y = footHeight(player.x, player.z) + 1.65;
   const keys = new Set();
   const sound = new HarborSound();
@@ -166,10 +174,14 @@ async function main() {
     player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch - e.movementY * 0.0022));
   });
   addEventListener('keydown', (e) => {
+    if (crossing.active) { if (e.code === 'Escape') crossing.skip(); return; }
     if (arcade.active || mapOpen || !$('creator').classList.contains('hidden')) return;   // a mini-game, the map or a wardrobe has the keyboard
     if (panelKey(e)) { e.preventDefault(); return; }  // a conversation or trade is open
     if (e.code === 'Escape' && soft && free()) { soft = false; $('hud').classList.add('dim'); $('resume').classList.remove('hidden'); return; }
-    if (busy() && e.code !== 'KeyC') return;          // menus open: nothing else
+    // While a conversation or trade is open, nothing else. While a menu (character, quests, inventory) is open,
+    // C / Q / J / I close it (C still closes anything, as before).
+    const menuOpen = busy() && ui.open?.classList?.contains('sheet');
+    if (busy() && e.code !== 'KeyC' && !(menuOpen && ['KeyJ', 'KeyQ', 'KeyI'].includes(e.code))) return;
     keys.add(e.code);
     if (e.code === 'KeyE') {
       if (reading) closeReading();
@@ -183,9 +195,13 @@ async function main() {
       }
     }
     if (e.code === 'Escape' && reading) closeReading();
-    if (e.code === 'KeyC') { if (busy()) closePanel(); else if (!reading) { keys.clear(); sheet(); } }
+    // C, Q (or J) and I open the character sheet, quests and inventory; the same key again closes it,
+    // another of them switches straight over.
+    const which = (k) => ui.open?.classList?.contains(k);
+    if (e.code === 'KeyC') { if (busy() && (!menuOpen || (!which('quests') && !which('inventory')))) closePanel(); else if (!reading) { keys.clear(); sheet(); } }
     if (e.code === 'KeyP' && !reading) { keys.clear(); pauseMenu(); return; }
-    if (e.code === 'KeyJ') { if (busy()) closePanel(); else if (!reading) { keys.clear(); journal(); } }
+    if (e.code === 'KeyJ' || e.code === 'KeyQ') { if (which('quests')) closePanel(); else if (!reading) { keys.clear(); journal(); } }
+    if (e.code === 'KeyI') { if (which('inventory')) closePanel(); else if (!reading) { keys.clear(); inventory(); } }
     if (e.code === 'KeyV' && free()) {
       if (!avatar) buildAvatar();
       if (!avatar) { toast('Your character isn\'t ready yet.'); return; }
@@ -324,7 +340,7 @@ async function main() {
     // The world stands still in the map, the pause menu and the "click to resume" screen
     // (people, ships, water, flames). Conversations don't stop it: the city goes on around you.
     if (pauseOpen && !busy()) pauseOpen = false;
-    const stopped = mapOpen || pauseOpen || (!locked() && free() && $('start').classList.contains('hidden'));
+    const stopped = !crossing.active && (mapOpen || pauseOpen || (!locked() && free() && $('start').classList.contains('hidden')));
     const wdt = stopped ? 0 : dt;
     worldTime += wdt;
     const wt = worldTime;
@@ -388,6 +404,7 @@ async function main() {
       view.dist = 0;
       camera.position.set(player.x, player.y + player.jump, player.z);
     }
+    if (crossing.active) crossing.update(dt, camera);          // the crossing to Meridia (crossing.js) takes the camera
 
     // Which place you're in: inside a room only that room is drawn; outside, the city.
     const here = roomAt(player.x, player.y - 1.6, player.z);
@@ -416,6 +433,7 @@ async function main() {
     updateProperty(wt);
     updatePeople(wt, wdt, player);
     stranger(wdt, player);
+    seizure(wdt, player);
     sneak(wdt, player);
     for (const [i, f] of flames.entries()) { const k = (f.userData.size || 1.6) * (1 + Math.sin(wt * 9 + i * 2) * 0.09 + Math.sin(wt * 23 + i) * 0.05); f.scale.set(k, k * 1.2, 1); }
     for (const [i, l] of (scene.userData.flickers || []).entries()) { l.userData.base ??= l.intensity; l.intensity = l.userData.base * (0.85 + Math.sin(wt * 11 + i) * 0.08 + Math.sin(wt * 27 + i * 3) * 0.07); }

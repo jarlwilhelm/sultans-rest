@@ -1,11 +1,14 @@
 // Conversations. Every line here that isn't from your guide is a placeholder of mine, meant to be
 // replaced with your own words (Xi's especially, and Redman's).
 import { state, rank, nextRank, RANKS, atLeast, atLevel, level, addRenown, note, save, marketOpen, isNight, clock } from './state.js';
-import { STALL_KINDS, GOODS } from './economy.js';
+import { STALL_KINDS, GOODS, tipOfTheDay } from './economy.js';
 import { talk, trade, rollCheck, toast, updateStatus, closePanel, askText, chapterEnd } from './ui.js';
 import { play } from '../minigames/index.js';
 import { REDMAN, shopTalk } from './story.js';
 import { questOption, questEvent, NAMED, setPlayHelpers } from './quests.js';
+import { dailyOption, shiftDone } from './daily.js';
+import { craftNode, enchantNode, CRAFT_LEVEL, ENCHANT_LEVEL } from './craft.js';
+import { firstMeeting } from './redman.js';
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const leave = { label: 'Leave' };
@@ -49,6 +52,7 @@ async function runGame(name, opts, who) {
   save(); updateStatus();
   if (res.summary) toast(res.summary, 4000);
   questEvent('game', { name, result: res });
+  if (!gambling) shiftDone(name, res);
   import('./items.js').then(m => m.checkSpecials(name, res));
   void who;
   return res;
@@ -69,13 +73,13 @@ function stall(npc) {
   const haggledToday = h && h.day === state.day;
   const options = [];
   if (atLeast('shack')) {
-    options.push({ label: 'Trade', do: () => { trade(m, { title: name, renownFor: profitRenown }); return 'keep'; } });
+    options.push({ label: 'Trade', do: () => { trade(m, { title: name, where: `the ${kind.name}`, renownFor: profitRenown }); return 'keep'; } });
     options.push({
       label: haggledToday ? 'Haggle (already tried today)' : 'Haggle for better prices', hint: 'Persuasion, DC 13', disabled: haggledToday,
       do: async () => {
         const r = await rollCheck('Persuasion', 13);
         state.haggled[m.id] = { day: state.day, factor: r.success ? (r.roll === 20 ? 0.8 : 0.88) : 1.06 };
-        return { name, text: [r.success ? pick(['Ah, you drive a hard bargain. Fine! For today only.', 'You remind me of my mother. Terrible. Fine, a better price.']) : pick(['Ha! No. And now it costs a little more.', 'You think I was born yesterday? Prices just went up.'])], options: [{ label: 'Trade', do: () => { trade(m, { title: name, renownFor: profitRenown }); return 'keep'; } }, leave] };
+        return { name, text: [r.success ? pick(['Ah, you drive a hard bargain. Fine! For today only.', 'You remind me of my mother. Terrible. Fine, a better price.']) : pick(['Ha! No. And now it costs a little more.', 'You think I was born yesterday? Prices just went up.'])], options: [{ label: 'Trade', do: () => { trade(m, { title: name, where: `the ${kind.name}`, renownFor: profitRenown }); return 'keep'; } }, leave] };
       },
     });
     options.push({
@@ -115,11 +119,21 @@ function ship(npc) {
   const name = `${npc.label}`;
   const options = [];
   if (/Tiefling/.test(m.land)) options.push(wardOption());
-  if (atLevel(2)) options.push({ label: 'Trade cargo', do: () => { trade(m, { title: `Ship from ${m.land.replace(/^the /, '')}`, renownFor: profitRenown }); return 'keep'; } });
+  if (atLevel(2)) options.push({ label: 'Trade cargo', do: () => { trade(m, { title: `Ship from ${m.land.replace(/^the /, '')}`, where: shipName(m.land), renownFor: profitRenown }); return 'keep'; } });
   else options.push({ label: 'Trade cargo', disabled: true, hint: 'Level 2: captains only deal with traders they know' });
   options.push({ label: 'What do you want for cargo?', do: () => ({ name, text: [buyHint(m)], options: [leave] }) });
   options.push(leave);
   return { name, text: [SHIP_TALK[m.land] || 'Fair winds.'], options };
+}
+const shipName = (land) => `the ${land.replace(/^the /, '').replace(' (passage escort)', '').replace(/^(Coastal Republic of |Vampiric Dominion of |Dreadfort of )/, '')} ship`;
+// A true trade tip (economy.js tipOfTheDay), the way the docks would tell it. DRAFT lines.
+export function tradeTip() {
+  const t = tipOfTheDay(), land = t.land.replace(/^the /, ''), g = GOODS[t.good].name.toLowerCase();
+  return pick([
+    `The captain from ${land} is short of ${g}. Paying a quarter over the odds, I heard. Today only, mind.`,
+    `If you've got ${g}, take it to the ship from ${land}. They're begging for it today.`,
+    `Word on the quay: ${land} wants ${g}, and wants it now. They'll pay for it.`,
+  ]);
 }
 function buyHint(m) {
   const want = Object.entries(GOODS).filter(([, g]) => g.from !== m.land).map(([k, g]) => [k, g]);
@@ -177,6 +191,8 @@ function guild(npc) {
     const ok = atLevel(4);
     return { name: npc.label, text: ['By the blessing of the King\'s blood, sand becomes glass. Our trial is simple: keep the spark alive and turn the whole wall to glass.'], options: [
       { label: 'Take the trial', hint: ok ? 'Mini-game: Glass Kiln' : 'Level 4', disabled: !ok, do: () => runGame('Glass Kiln', {}) },
+      { label: 'Use the workshop (craft goods)', hint: atLevel(CRAFT_LEVEL) ? 'combine goods into dearer ones' : `Level ${CRAFT_LEVEL}`, disabled: !atLevel(CRAFT_LEVEL), do: () => craftNode(npc.label) },
+      { label: 'Enchant something you made', hint: atLevel(ENCHANT_LEVEL) ? 'worth more with every level' : `Level ${ENCHANT_LEVEL}`, disabled: !atLevel(ENCHANT_LEVEL), do: () => enchantNode(npc.label) },
       leave,
     ] };
   }
@@ -229,6 +245,7 @@ export function sleep() {
 
 // Things that happen at the start of each day.
 export function newDay() {
+  collectLoan();
   const inc = rank().income;
   if (inc > 0) {
     const take = Math.round(inc * (0.8 + Math.random() * 0.4));
@@ -266,13 +283,44 @@ const ROLE_LINES = {
   pilot: ['Stay inside the violet lights. Always.', 'The passage costs what it costs. The kraken cost more.'],
   local: ['Glory to King Shou.', 'Mind the camels.', 'You\'re not from here.'],
   shopper: ['Saffron\'s gone up again.', 'Have you seen the silk on the Dezfulian ship?'],
-  guard: ['Move along.', 'Report any sighting of the man on those posters.', 'Trouble? No? Good.'],
+  guard: ['Move along.', 'Report any sighting of the man on those posters.', 'Trouble? No? Good.', 'Customs found something in a crate of Meridian rum last month. The Steward hasn\'t smiled since.'],
   scribe: ['Petitions to the left. Complaints to the sea.'],
 };
+// What people say about the great and the strange, by where you are: the people of a place talk most about
+// their own (in Sultan's Rest, the Steward Xi), and a little about the rest of the world. Chapter Two adds
+// Meridia's own list. All DRAFT lines by Claude.
+export const PLACE = 'sultans_rest';
+const ABOUT = {
+  sultans_rest: {
+    who: 'the Steward',
+    lines: [
+      'Xi? Fair. Hard, but fair. You get one petition a season. Make it a good one.',
+      'The lamp in the palace burns all night. The Steward doesn\'t sleep, they say. Or doesn\'t trust the night.',
+      'King Shou rules from the capital, but this harbor is Xi\'s. Everyone knows it. The King knows it too.',
+      'I saw Xi on the quay once, at dawn. No guards. Just looking at the ships. Then gone.',
+      'Bribe the Steward? Someone tried. They swim very well now, I hear. Long way from here.',
+      'Xi remembers every face that ever stood in that hall. Every one. Don\'t give him a reason to remember yours.',
+    ],
+  },
+};
+const WIDER = [
+  'In Meridia the people offered Arthur a crown. He told them to keep it. Mad, or the only honest man in the West.',
+  'Arthur speaks for the whole Republic, and still eats in the same tavern as the dockhands. So the Meridians say.',
+  'The Meridians argue about everything, except Arthur.',
+];
+// Levinite, hinted at, never explained in Chapter One.
+const HUSHED = [
+  'My cousin\'s boy lost a month\'s wages in one night. Swears he only blinked, and then it was morning.',
+  'There\'s a man on the Grand Pier who watched the sun go down and didn\'t move till it came up again. Didn\'t remember a thing, he said.',
+  'Some of the Meridian sailors sleep all at once, a whole night gone in a breath. Others don\'t sleep at all. Don\'t ask them why.',
+  'If someone offers you a little vial of violet glass, walk away. Then forget you saw it.',
+];
 function crowd(npc) {
   const role = npc.role || 'local';
+  const here = ABOUT[PLACE];
   return { name: npc.label, text: [Math.random() < 0.35 ? shopTalk() : pick(ROLE_LINES[role] || ROLE_LINES.local)], options: [
-    { label: 'Heard any news?', do: () => ({ name: npc.label, text: [pick(RUMORS)], options: [leave] }) },
+    { label: 'Heard any news?', do: () => { const r = Math.random(); return { name: npc.label, text: [r < 0.35 ? tradeTip() : r < 0.47 ? pick(HUSHED) : r < 0.57 ? pick(WIDER) : pick(RUMORS)], options: [leave] }; } },
+    { label: `What do people make of ${here.who}?`, do: () => ({ name: npc.label, text: [pick(here.lines)], options: [leave] }) },
     ...(role === 'pilot' ? [wardOption()] : []),
     leave,
   ] };
@@ -285,9 +333,45 @@ function named(npc) {
     : npc.id === 'barber' ? [{ label: 'A haircut (colour, beard)', do: () => { closePanel(true); import('../wardrobe.js').then(w => w.openWardrobe('barber')); return 'keep'; } }] : [];
   return { name: n.title, text: [n.idle[Math.floor(Math.random() * n.idle.length)]], options: [
     ...shop,
+    ...(npc.id === 'rashid' ? loanOptions(npc) : []),
     { label: 'Heard any news?', do: () => ({ name: n.title, text: [pick(RUMORS)], options: [leave] }) },
     leave,
   ] };
+}
+
+// ---------- Rashid's loans ----------
+// Money to start with, at a price: borrow by level, pay back a fifth more within a week. Late, and his man
+// collects from your purse in the morning (and the Merchants' Guild hears of it). DRAFT lines.
+const LOAN_SIZES = [0, 60, 120, 200, 300, 450, 650, 900, 1200, 1600, 2000];
+const LOAN_DAYS = 7, LOAN_RATE = 0.2;
+function loanOptions(npc) {
+  const L = state.loan;
+  const who = NAMED[npc.id].title;
+  if (L) {
+    const left = L.due - state.day;
+    return [{ label: `Pay back the loan (${L.owe} gold)`, hint: left >= 0 ? `due in ${left} day${left === 1 ? '' : 's'}` : 'late!', disabled: state.gold < L.owe,
+      do: () => { state.gold -= L.owe; state.spent += L.owe; note(`Paid Rashid back ${L.owe} gold`); delete state.loan; state.reputation.merchants += 1; save(); updateStatus();
+        return { name: who, text: ['He counts it twice, and smiles for the first time. "On time. You\'re your brother\'s sibling after all. Come back whenever you need me."'], options: [leave] }; } }];
+  }
+  const size = LOAN_SIZES[Math.min(level(), LOAN_SIZES.length - 1)];
+  const owe = Math.round(size * (1 + LOAN_RATE));
+  return [{ label: `Borrow ${size} gold`, hint: `pay back ${owe} within ${LOAN_DAYS} days`,
+    do: () => ({ name: who, text: [`"${size} gold. You bring me ${owe} within ${LOAN_DAYS} days. If you don't, I come to you, and I take it from whatever you have. Agreed?"`], options: [
+      { label: 'Agreed', do: () => { state.loan = { owe, due: state.day + LOAN_DAYS }; state.gold += size; note(`Borrowed ${size} gold from Rashid (pay back ${owe} by day ${state.day + LOAN_DAYS})`); save(); updateStatus();
+        return { name: who, text: ['He counts the coins into your hand. "Buy cheap. Sell dear. And remember the day."'], options: [leave] }; } },
+      { label: 'Not today', do: () => ({ name: who, text: ['"Wise, perhaps. The offer stands."'], options: [leave] }) },
+    ] }) }];
+}
+// In the morning: a late loan gets collected.
+function collectLoan() {
+  const L = state.loan;
+  if (!L || state.day <= L.due) return;
+  const take = Math.min(state.gold, L.owe);
+  state.gold -= take; L.owe -= take;
+  state.reputation.merchants = Math.max(0, state.reputation.merchants - 2);
+  note(`Rashid's man collected ${take} gold for a late loan${L.owe > 0 ? ` (${L.owe} still owed)` : ''}`);
+  toast(`Rashid's man was waiting at your door: he took ${take} gold for the late loan.${L.owe > 0 ? ` You still owe ${L.owe}.` : ''}`, 7000);
+  if (L.owe <= 0) delete state.loan; else L.owe = Math.round(L.owe * 1.05);
 }
 
 // ---------- Redman (level 8) ----------
@@ -310,7 +394,11 @@ function redmanEnd(npc, line) {
   note('A stranger told you Ale was part of something bigger');
   questEvent('flag');
   npc.onGone?.();
-  return { name: 'A traveler in a plain cloak', text: [line, 'Only later, passing a wanted poster with no picture on it, does it occur to you who he must have been.'], options: [leave] };
+  // His purse of faceless coins and his question (redman.js). He leaves once you've answered.
+  const node = firstMeeting('A traveler in a plain cloak', [line]);
+  const after = 'Only later, passing a wanted poster with no picture on it, does it occur to you who he must have been.';
+  node.options = node.options.map(o => o.do ? { ...o, do: async () => { const r = await o.do(); return r && r.text ? { ...r, text: [...r.text, after] } : r; } } : o);
+  return node;
 }
 
 export function interact(npc) {
@@ -321,6 +409,9 @@ export function interact(npc) {
   // Whoever the story needs next gets an extra option, just before "Leave".
   const extra = npc.kind !== 'stranger' && questOption(questKey(npc), npc.label);
   if (extra && node.options) node.options.splice(Math.max(0, node.options.length - 1), 0, extra);
+  // Today's trade notices: deliver to whoever posted the order.
+  const order = dailyOption(npc);
+  if (order && node.options) node.options.splice(Math.max(0, node.options.length - 1), 0, order);
   talk(node);
 }
 

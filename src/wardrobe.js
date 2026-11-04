@@ -10,7 +10,7 @@ import { ITEMS, owned, equipped, buy, wear } from './game/items.js';
 import { updateStatus } from './game/ui.js';
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const SECTIONS = { base: 'Outfit', hue: 'Clothing colour', hat: 'Hat', held: 'In your hand', hair: 'Hair colour', beard: 'Beard' };
+const SECTIONS = { base: 'Outfit', hue: 'Clothing colour', hat: 'Hat', held: 'In your hand', hair: 'Hair colour', style: 'Haircut (peasant and ranger outfits)', beard: 'Beard' };
 
 export function openWardrobe(mode = 'wardrobe') {
   return new Promise((resolve) => {
@@ -50,7 +50,7 @@ export function openWardrobe(mode = 'wardrobe') {
       form.replaceChildren();
       form.append(el('div', 'who', { wardrobe: "Ale's wardrobe", tailor: 'The tailor', barber: 'The barber' }[mode]));
       form.append(el('p', 'small-note', mode === 'wardrobe' ? 'Click to try on; Wear to keep. Grey things are still out there to earn.' : `Click to try on before you pay. You have ${state.gold} gold.`));
-      const slots = mode === 'barber' ? ['hair', 'beard'] : ['base', 'hue', 'hat', 'held'];
+      const slots = mode === 'barber' ? ['hair', 'style', 'beard'] : ['base', 'hue', 'hat', 'held'];
       for (const slot of slots) {
         form.append(el('h3', '', SECTIONS[slot]));
         const list = el('div', 'wlist');
@@ -59,6 +59,7 @@ export function openWardrobe(mode = 'wardrobe') {
           const mine = owned(id), on = equipped(id);
           if (mode === 'wardrobe' && !mine && it.how === 'buy') continue;              // the shops sell those
           if (mode === 'wardrobe' && it.how === 'barber') continue;
+          if (it.how === 'redman' && !mine) continue;                                  // Redman's gifts stay secret until you have one
           if (mode === 'tailor' && it.how !== 'buy') continue;
           const row = el('div', 'wrow' + (on ? ' on' : ''));
           const locked = (it.how === 'story' || it.how === 'special') && !mine;

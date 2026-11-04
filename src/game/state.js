@@ -23,9 +23,9 @@ export const LEVELS = [0, 20, 60, 120, 200, 300, 420, 560, 720, 900];
 export const UNLOCKS = {
   1: 'Market Run, Cargo Hold, Gull Patrol; Ale\'s house and stand',
   2: 'Trading with ships; Bones and Twenty-One; the Salted Kraken (inside)',
-  3: 'Small Store; the Merchants\' Guild (inside)',
+  3: 'Small Store; the Merchants\' Guild (inside); crafting at the Transmuters\' workshop',
   4: 'Glass Kiln; the Transmuters\' workshop (inside)',
-  5: 'Alley Chase; the Adventurers\' Guild (inside)',
+  5: 'Alley Chase; the Adventurers\' Guild (inside); enchanting at the Transmuters\'',
   6: 'Bigger Store; the Mariners\' Guild (inside)',
   7: 'Ward Keeper; someone will be waiting at Ale\'s house tonight',
   8: 'Store Add-on; the palace',
@@ -73,6 +73,19 @@ function load(n) {
     return Object.assign(fresh(), JSON.parse(raw));
   } catch { return null; }
 }
+// Outfits retired on 2026-11-03 (hard hats, overalls): what saves and wardrobes become.
+// The rest of the older outfits followed the same day (robes and rangers).
+const RETIRED = { men_Worker: 'Male_Peasant', women_Worker: 'Female_Peasant', men_Farmer: 'Male_Peasant',
+  men_Adventurer: 'Male_Ranger', women_Adventurer: 'Female_Ranger', women_Medieval: 'Female_Robe', women_Witch: 'Female_Robe', men_King: 'Male_Robe' };
+const RETIRED_ITEMS = { 'outfit:men_King': 'outfit:noble_him' };
+function upgrade(s) {
+  if (s.look?.base === 'men_King') s.look.trim = 'gold';
+  if (s.look && RETIRED[s.look.base]) s.look.base = RETIRED[s.look.base];
+  if (s.owned) s.owned = [...new Set(s.owned.map(id => RETIRED_ITEMS[id] || (id.startsWith('outfit:') && RETIRED[id.slice(7)] ? 'outfit:' + RETIRED[id.slice(7)] : id)))];
+  return s;
+}
+upgrade(state);
+
 export function save() {
   state.savedAt = Date.now();
   put(slotKey(slot), JSON.stringify(state));

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sultan's Rest</title>
+<title>Trader Quest</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
 <script type="importmap">
@@ -73,6 +73,10 @@
   #sneak.hidden { display: none; }
   #fade { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #050302; color: var(--sand); display: flex; align-items: center; justify-content: center; font-family: Cinzel, serif; font-size: 24px; letter-spacing: 0.08em; transition: opacity 0.9s; z-index: 9; }
   #fade.on { opacity: 1; }
+  #crossing { position: fixed; left: 0; right: 0; bottom: 9vh; display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 8; padding: 0 16px; }
+  #crossing .cline { max-width: 760px; text-align: center; font-family: 'IM Fell English', serif; font-size: 23px; line-height: 1.45; color: #fff3df; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85); opacity: 0; transition: opacity 0.45s; margin: 0; }
+  #crossing .cline.on { opacity: 1; }
+  #crossing .cskip { margin-top: 18px; font-family: Cinzel, serif; font-size: 12px; letter-spacing: 0.1em; color: rgba(255, 243, 223, 0.55); }
   .wlist { display: grid; gap: 4px; }
   .wrow { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: #f7eed8; border: 1px solid #d8c49a; cursor: pointer; font-size: 15px; }
   .wrow:hover { border-color: #7a5a2a; } .wrow.on { border-color: #7a1408; background: #fff7e2; }
@@ -123,6 +127,19 @@
   .small-note { font-size: 14px; font-style: italic; color: #5a4a2a; }
   .answer { width: 100%; box-sizing: border-box; font: inherit; font-size: 22px; padding: 8px 10px; margin: 8px 0; border: 1px solid #7a5a2a; background: #fff8e6; color: var(--ink); }
   .chapter .who { font-size: 26px; color: #7a1408; }
+  .tabs { display: flex; gap: 6px; margin: 4px 0 10px; flex-wrap: wrap; }
+  .tab { font: inherit; font-family: Cinzel, serif; font-size: 13px; letter-spacing: 0.06em; padding: 5px 12px; background: #f7eed8; border: 1px solid #b89a6a; cursor: pointer; color: var(--ink); }
+  .tab.on { background: #7a5a2a; color: #fff3cf; border-color: #7a5a2a; }
+  .qstep { font-size: 15px; padding: 3px 0; } .qstep.done { color: #7a6a4a; text-decoration: line-through; text-decoration-color: rgba(122, 106, 74, 0.5); }
+  .qstep.now { background: #f7eed8; border-left: 3px solid #b8862c; padding: 6px 10px; margin: 6px 0; }
+  .qdone summary { font-size: 15px; cursor: pointer; padding: 3px 0; } .qdone .qstep { padding-left: 18px; }
+  .invgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 10px 0; }
+  .invtile { font: inherit; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; min-height: 92px; background: #f7eed8; border: 1px solid #c8b088; cursor: pointer; color: var(--ink); }
+  .invtile:hover { background: #fff7e2; } .invtile.on { border: 2px solid #7a5a2a; background: #fff7e2; }
+  .invtile.empty { background: rgba(247, 238, 216, 0.4); border-style: dashed; cursor: default; }
+  .invsw { width: 34px; height: 34px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.3); box-shadow: inset 0 -6px 10px rgba(0, 0, 0, 0.15); }
+  .invname { font-size: 13px; font-weight: bold; text-align: center; line-height: 1.15; } .invcount { font-family: Cinzel, serif; font-size: 13px; color: #6a3a10; }
+  .invinfo { background: #f7eed8; border: 1px solid #d8c49a; padding: 6px 12px 8px; margin-top: 4px; }
   .journal { font-size: 14px; max-height: 140px; overflow: auto; background: #f7eed8; padding: 6px 10px; border: 1px solid #d8c49a; }
   /* Dice */
   #dicebox { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 12, 4, 0.55); z-index: 5; }
@@ -142,13 +159,13 @@
 <div id="view"></div>
 <div id="loading" class="panel">Raising the city…</div>
 <div id="start" class="panel hidden">
-  <h1>SULTAN'S REST</h1>
-  <div class="sub">The harbor of the Sultanate · Lavine</div>
+  <h1>TRADER QUEST</h1>
+  <div class="sub">Chapter One · Sultan's Rest, harbor of the Sultanate</div>
   <div class="sub" style="font-size:18px;margin-top:-18px">Arrive with a few coins. Leave with the Steward's Charter.</div>
   <div id="menu"></div>
   <div class="keys">
     <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> walk &nbsp;·&nbsp; mouse to look &nbsp;·&nbsp; <kbd>Shift</kbd> run &nbsp;·&nbsp; <kbd>Space</kbd> jump<br>
-    <kbd>E</kbd> talk to people, read signs &nbsp;·&nbsp; <kbd>C</kbd> character &nbsp;·&nbsp; <kbd>J</kbd> your story &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>9</kbd> pick an answer<br>
+    <kbd>E</kbd> talk to people, read signs &nbsp;·&nbsp; <kbd>C</kbd> character &nbsp;·&nbsp; <kbd>Q</kbd> quests &nbsp;·&nbsp; <kbd>I</kbd> inventory &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>9</kbd> pick an answer<br>
     <kbd>V</kbd> see yourself &nbsp;·&nbsp; <kbd>M</kbd> map &nbsp;·&nbsp; <kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>N</kbd> sound &nbsp;·&nbsp; <kbd>G</kbd> graphics &nbsp;·&nbsp; <kbd>Esc</kbd> free the mouse
   </div>
 </div>

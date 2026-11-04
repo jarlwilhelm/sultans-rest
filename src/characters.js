@@ -1,20 +1,30 @@
-// Animated people, built from Quaternius' Ultimate Modular Men and Women (CC0): adult proportions,
-// eight outfits, with idle, walk, talk and wave animations. Each person gets their race's skin,
-// their own hair colour, recoloured clothes, and race features (horns, ears, tusks, beards,
-// snouts, tails) fixed to the head and hips.
+// Animated people, made from Quaternius's free (CC0) kits by tools/blender/people.py (assets/people):
+// six outfits (peasant, ranger and robe, for him and her), each with the base character's head and every
+// hairstyle on one skeleton; the animations are in assets/people/anims.glb. Each person gets their race's
+// skin, their own hair colour and haircut, recoloured clothes, and race features (horns, ears, tusks,
+// beards, snouts, tails) fixed to the head and hips. (These replaced the older Ultimate Modular Men and
+// Women on 2026-11-03, whose hard hats, overalls and witch's hat looked out of place. Only King Shou's
+// golden statue still uses an older model.)
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { prop } from './interiors.js';
 
-const BASES = ['men_Adventurer', 'men_Farmer', 'men_King', 'men_Worker', 'women_Adventurer', 'women_Medieval', 'women_Witch', 'women_Worker'];
+const BASES = ['men_King'];       // only King Shou's statue still uses an older model
+export const KITS = ['Male_Peasant', 'Male_Ranger', 'Male_Robe', 'Female_Peasant', 'Female_Ranger', 'Female_Robe'];
+// Saves and wardrobes from before the kits: the old outfits they become.
+export const RETIRED = { men_Worker: 'Male_Peasant', women_Worker: 'Female_Peasant', men_Farmer: 'Male_Peasant',
+  men_Adventurer: 'Male_Ranger', women_Adventurer: 'Female_Ranger', women_Medieval: 'Female_Robe', women_Witch: 'Female_Robe', men_King: 'Male_Robe' };
+const isKit = (b) => KITS.includes(b);
+// Hairstyles on the kits (any style on any kit). null = shaved.
+export const STYLES = [['Hair_SimpleParted', 'Parted'], ['Hair_Buzzed', 'Cropped'], ['Hair_Long', 'Long'], ['Hair_Buns', 'Buns'],
+  ['Hair_BuzzedFemale', 'Short'], [null, 'Shaved']];
+const NPC_STYLES = { Male: ['Hair_SimpleParted', 'Hair_SimpleParted', 'Hair_Buzzed', 'Hair_Long', null], Female: ['Hair_Long', 'Hair_Long', 'Hair_Buns', 'Hair_BuzzedFemale'] };
+const KIT_CLIPS = { idle: 'Idle_Loop', walk: 'Walk_Loop', talk: 'Idle_Talking_Loop', cheer: 'Interact', sit: 'Sitting_Idle_Loop', pick: 'PickUp_Table' };
+let kitClips = [];
 const BODY_HEIGHT = 1.82;     // metres, feet to the top of the head
 const models = {};
 
-// Material names in the models: skin, hair, and the rest is clothing.
-const SKIN = /^Skin$/;
-const HAIR = /^(Hair.*|Eyebrows|Moustache)$/;
-const KEEP = /^(Eye|Metal.*|Gold|Black|White)$/;
 
 export async function loadCharacters() {
   const loader = new GLTFLoader();
@@ -22,30 +32,38 @@ export async function loadCharacters() {
     const g = await loader.loadAsync(`assets/quaternius/people/${name}.glb`);
     models[name] = { scene: g.scene, clips: g.animations };
   }));
+  await Promise.all([...KITS, 'anims'].map(async (name) => {
+    const g = await loader.loadAsync(`assets/people/${name}.glb`);
+    if (name === 'anims') { kitClips = g.animations; return; }
+    models[name] = { scene: g.scene, clips: [], kit: measureKit(g.scene) };
+  }));
 }
-export const BODIES = [['men_Adventurer', 'Adventurer'], ['women_Adventurer', 'Adventurer'], ['men_Farmer', 'Farmer'], ['women_Medieval', 'Townswoman'],
-  ['men_Worker', 'Dock worker'], ['women_Worker', 'Dock worker'], ['women_Witch', 'Robed']];
-export { HAIRS };
-export function charactersReady() { return Object.keys(models).length === BASES.length; }
 
-// ---------- Colours ----------
-const matCache = new Map();
-function recolor(mat, { skin, hair, hue, sat, worker }) {
-  const name = mat.name;
-  let key, make;
-  if (SKIN.test(name)) { key = `skin|${skin}`; make = (m) => m.color.set(skin); }
-  else if (HAIR.test(name)) { key = `hair|${hair}`; make = (m) => m.color.set(hair); }
-  else if (KEEP.test(name)) return mat;
-  else if (worker && name === 'Worker_Yellow') { key = `wy|${hue.toFixed(2)}`; make = (m) => m.color.setHSL(hue, 0.25, 0.55); }  // a cloth cap, not a hard hat
-  else if (worker && name === 'Worker_Vest') { key = 'wv'; make = (m) => m.color.set('#5a3e24'); }                                 // a leather vest
-  else {
-    key = `${hue.toFixed(2)}|${sat}`;
-    make = (m) => { const hsl = {}; m.color.getHSL(hsl); m.color.setHSL((hsl.h + hue) % 1, Math.min(1, hsl.s * sat), hsl.l); };
-  }
-  key = `${mat.uuid}|${key}`;
-  if (!matCache.has(key)) { const m = mat.clone(); make(m); matCache.set(key, m); }
-  return matCache.get(key);
+// A kit's height (feet to the top of the head) and where its head is, measured once in the standing pose.
+function measureKit(scene) {
+  scene.updateMatrixWorld(true);
+  let head = null;
+  scene.traverse(o => { if (o.isMesh && o.name === 'Head_Skin') head = o; });
+  const hb = new THREE.Box3().setFromObject(head);
+  return { height: hb.max.y, top: hb.max.y, front: hb.max.z, cx: (hb.min.x + hb.max.x) / 2 };
 }
+
+// A point fixed to a bone that has the same axes and metre scale as the whole figure (the kits' bones
+// are turned and scaled their own way). Hats, horns and tails hang on these, as on the older models' bones.
+function anchorOn(bone, root, at) {
+  root.updateMatrixWorld(true);
+  const a = new THREE.Object3D();
+  const want = new THREE.Matrix4().compose(at, new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+  // `at` is in the figure's own space; to the bone's: bone^-1 x figure x at.
+  const local = bone.matrixWorld.clone().invert().multiply(root.matrixWorld.clone().multiply(want));
+  local.decompose(a.position, a.quaternion, a.scale);
+  bone.add(a);
+  return a;
+}
+export const BODIES = [['Male_Peasant', 'Peasant (him)'], ['Female_Peasant', 'Peasant (her)'], ['Male_Ranger', 'Ranger (him)'], ['Female_Ranger', 'Ranger (her)'],
+  ['Male_Robe', 'Robe (him)'], ['Female_Robe', 'Robe (her)']];
+export { HAIRS };
+export function charactersReady() { return Object.keys(models).length === BASES.length + KITS.length && kitClips.length > 0; }
 
 // ---------- Race features ----------
 const featMats = new Map();
@@ -62,11 +80,6 @@ function part(parent, geo, mat, [x, y, z], [sx, sy, sz], [rx, ry, rz] = [0, 0, 0
   return m;
 }
 const pickFrom = (rng, list) => list[Math.floor(rng() * list.length)];
-
-// Hats that are part of an outfit's head (by material). Hidden when you wear a hat of your own,
-// so there's never a hat on a hat.
-const BUILT_IN_HATS = { men_Farmer: ['Beige', 'Red'], men_King: ['Gold'], men_Worker: ['Worker_Yellow'], women_Worker: ['Worker_Yellow'], women_Witch: ['Purple', 'Gold'] };
-const onHead = (o) => /_Head$/.test(o.name) || /_Head$/.test(o.parent?.name || '');
 
 // Positions in metres from the head bone, measured on the models: the head's middle is 0.10 up and
 // 0.01 forward of the bone, the face is 0.13 forward, the top 0.27 up, and it's 0.22 wide.
@@ -147,6 +160,12 @@ function addHat(head, hat, color) {
     part(head, new THREE.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), FL(hat === 'gullfeather' ? '#2f6b5a' : '#7a2a1c'), [0, 0.2, 0.0], [0.115, 0.09, 0.12]);
     part(head, lowCone, hat === 'gullfeather' ? gold : FL('#f3ede0'), [0.08, 0.25, -0.05], [0.018, 0.22, 0.008], [-0.9, 0, -0.3]);
   }
+  else if (hat === 'redfeather') {
+    part(head, brim, FL('#16141a'), [0, 0.2, 0.0], [0.23, 0.012, 0.23]); part(head, brim, FL('#16141a'), [0, 0.2, 0.0], [0.105, 0.11, 0.105]);
+    part(head, brim, FL('#7a1408'), [0, 0.215, 0.0], [0.108, 0.022, 0.108]);
+    part(head, lowCone, FL('#b8180c'), [0.09, 0.27, -0.04], [0.02, 0.26, 0.008], [-1.0, 0, -0.35]);
+  }
+  else if (hat === 'silvercirclet') { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.01, 6, 20), new THREE.MeshStandardMaterial({ color: '#d8dde8', metalness: 0.8, roughness: 0.25 })); ring.rotation.x = Math.PI / 2; ring.position.set(0, 0.2, 0.0); head.add(ring); part(head, lowBall, FM('#9a4be0'), [0, 0.2, 0.11], [0.017, 0.017, 0.012]); }
   else if (hat === 'circlet') { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.012, 6, 20), gold); ring.rotation.x = Math.PI / 2; ring.position.set(0, 0.2, 0.0); head.add(ring); part(head, lowBall, FM('#7fe0ff'), [0, 0.2, 0.11], [0.015, 0.015, 0.012]); }
   else if (hat === 'straw') { part(head, new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0), straw, [0, 0.2, 0.0], [0.28, 0.12, 0.28]); }
   else if (hat === 'captain') {
@@ -165,6 +184,7 @@ function addHeld(hand, held) {
   const wood = FL('#6b4a2c'), gold = new THREE.MeshStandardMaterial({ color: '#e0b347', metalness: 0.7, roughness: 0.3 });
   if (held === 'stick') part(grip, new THREE.CylinderGeometry(1, 1, 1, 6), wood, [0, -0.35, 0], [0.018, 1.25, 0.018]);
   else if (held === 'tongs') { for (const s of [-1, 1]) part(grip, box, gold, [s * 0.012, -0.12, 0], [0.012, 0.42, 0.012], [0, 0, s * 0.06]); }
+  else if (held === 'compass') { part(grip, new THREE.CylinderGeometry(1, 1, 1, 18), gold, [0, -0.02, 0], [0.045, 0.012, 0.045], [Math.PI / 2, 0, 0]); part(grip, box, FL('#b8180c'), [0, -0.02, 0.008], [0.006, 0.06, 0.004], [0, 0, 0.7]); }
   else if (held === 'tooth') { part(grip, lowCone, FL('#efe6d2'), [0, 0.03, 0], [0.025, 0.14, 0.025], [Math.PI, 0, 0]); }
   else prop(grip, held, 0, -0.02, 0, { h: { Torch: 0.55, Book1_Closed: 0.06, Dagger: 0.32, Sword: 0.9, Lettuce_Harvested: 0.22, Coin: 0.035 }[held] || 0.3 });
   return { grip, hand };
@@ -172,14 +192,14 @@ function addHeld(hand, held) {
 
 // ---------- Building a person ----------
 const ROLE_BASE = {
-  local: ['men_Farmer', 'women_Medieval', 'men_Worker', 'women_Worker'],
-  shopper: ['men_Farmer', 'women_Medieval', 'women_Adventurer', 'men_Adventurer'],
-  merchant: ['women_Medieval', 'men_Farmer', 'men_Adventurer'],
-  sailor: ['men_Worker', 'women_Worker', 'men_Farmer'],
-  dockhand: ['men_Worker', 'women_Worker'],
-  adventurer: ['men_Adventurer', 'women_Adventurer', 'women_Medieval'],
-  traveler: ['men_Adventurer', 'women_Adventurer', 'women_Witch'],
-  pilot: ['women_Witch'], guard: ['men_Adventurer'], steward: ['men_King'], scribe: ['women_Medieval', 'men_Farmer'],
+  local: ['Male_Peasant', 'Female_Peasant', 'Male_Robe', 'Female_Robe', 'Male_Peasant', 'Female_Robe'],
+  shopper: ['Male_Peasant', 'Female_Peasant', 'Male_Robe', 'Female_Robe', 'Male_Ranger'],
+  merchant: ['Male_Robe', 'Female_Robe', 'Male_Robe', 'Female_Robe', 'Male_Peasant'],
+  sailor: ['Male_Peasant', 'Female_Peasant', 'Male_Ranger'],
+  dockhand: ['Male_Peasant', 'Female_Peasant'],
+  adventurer: ['Male_Ranger', 'Female_Ranger'],
+  traveler: ['Male_Ranger', 'Female_Ranger', 'Male_Robe', 'Female_Robe'],
+  pilot: ['Female_Robe', 'Male_Robe'], guard: ['Male_Ranger'], steward: ['Male_Robe'], scribe: ['Female_Robe', 'Male_Robe'],
 };
 const HAIRS = ['#1a1410', '#3a2618', '#6a4a2a', '#a87a3a', '#d9c08a', '#8a2a1a', '#e8e4dc', '#555555'];
 
@@ -198,57 +218,83 @@ function fitBounds(group) {
 
 // look (optional, from the character creator): { base, hair, hue } chosen instead of at random.
 export function makeCharacter({ race, role, height, girth, skin, look }, rng) {
-  const base = look?.base || pickFrom(rng, ROLE_BASE[role] || ROLE_BASE.local);
+  const base = RETIRED[look?.base] || look?.base || pickFrom(rng, ROLE_BASE[role] || ROLE_BASE.local);
+  return makeKitCharacter({ race, role, height, girth, skin, look, base: isKit(base) ? base : 'Male_Peasant' }, rng);
+}
+
+// ---------- A kit person (outfit + head + one hairstyle on one skeleton) ----------
+const tintCache = new Map();
+function tinted(mat, key, set) {
+  const k = `${mat.uuid}|${key}`;
+  if (!tintCache.has(k)) { const m = mat.clone(); set(m); tintCache.set(k, m); }
+  return tintCache.get(k);
+}
+function makeKitCharacter({ race, role, height, girth, skin, look, base }, rng) {
   const src = models[base];
   const obj = SkeletonUtils.clone(src.scene);
-  const hue = look ? look.hue : role === 'steward' ? 0.78 : role === 'guard' ? 0.45 : role === 'pilot' ? 0.0 : Math.floor(rng() * 12) / 12;
-  const sat = role === 'local' || role === 'scribe' ? 0.6 : 1;
+  const sex = base.startsWith('Female') ? 'Female' : 'Male';
+  const hue = look ? look.hue : role === 'guard' ? 0.45 : role === 'pilot' ? 0.75 : role === 'steward' ? 0.78 : Math.floor(rng() * 12) / 12;
   const hair = look ? look.hair : role === 'steward' ? '#1a1410' : pickFrom(rng, HAIRS);
-  const worker = /Worker/.test(base);
-  let head = null, hips = null;
+  const gold = look ? look.trim === 'gold' : role === 'steward';
+  const style = look ? (look.style !== undefined ? look.style : NPC_STYLES[sex][0]) : pickFrom(rng, NPC_STYLES[sex]);
+  const beard = sex === 'Male' && race !== 'dwarf' && race !== 'dragonborn' && (look ? !!look.beard : rng() < 0.4);
+  const horned = race === 'tiefling' || race === 'dragonborn' || race === 'gnome';
+  const hood = !look?.hat && !horned && role !== 'guard';   // the ranger's hood, unless something else is on the head (guards wear turbans)
+  let head = null, hips = null, hand = null, mid = null, hooded = false;
   obj.traverse(o => {
     if (o.isBone && o.name === 'Head') head = o;
-    if (o.isBone && o.name === 'Hips') hips = o;
-    if (/Sword/.test(o.name) && role !== 'adventurer' && role !== 'guard') o.visible = false;   // (a group, so check before the mesh test)
-    if (race === 'dragonborn' && /_Head$/.test(o.name)) o.visible = false;                     // the lizard head replaces it
+    if (o.isBone && o.name === 'pelvis') hips = o;
+    if (o.isBone && o.name === 'hand_r') hand = o;
+    if (o.isBone && o.name === 'middle_01_r') mid = o;
     if (!o.isMesh) return;
-    // The Farmer body's cowboy hat doesn't belong in the Sultanate: always off (headwear from addHat instead).
-    if ((look?.hat || base === 'men_Farmer') && onHead(o) && (BUILT_IN_HATS[base] || []).includes(o.material.name)) o.visible = false;
-    o.material = recolor(o.material, { skin, hair, hue, sat, worker });
+    if (/_Head_Hood$/.test(o.name)) { o.visible = hood; hooded = hood; }
+  });
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    const n = o.name, m = o.material.name;
+    if (/^Hair_/.test(n)) o.visible = !hooded && (n === style || (beard && n === 'Hair_Beard'));
+    if (race === 'dragonborn' && (n === 'Head_Skin' || n === 'Eyes' || /^Eyebrows|^Hair_/.test(n))) o.visible = false;
+    if (/^Skin/.test(m)) o.material = tinted(o.material, `skin|${skin}`, (x) => x.color.set(skin));
+    else if (/^Hair/.test(m)) o.material = tinted(o.material, `hair|${hair}`, (x) => x.color.set(hair));
+    else if (m === 'Sash' && gold) o.material = tinted(o.material, 'gold', (x) => { x.color.set('#e0b347'); x.metalness = 0.6; x.roughness = 0.35; });
+    // Textured cloth is tinted lightly (the colour multiplies the texture); the plain robes get the colour itself.
+    else if (/^Cloth/.test(m) && hue) o.material = tinted(o.material, `cloth|${hue.toFixed(2)}`, (x) => /Robe/.test(m) ? x.color.setHSL(hue, 0.42, 0.42) : x.color.setHSL(hue, 0.45, 0.8));
     o.castShadow = true;
     o.receiveShadow = true;
   });
-  addFeatures(race, role, head, hips, skin, hair, rng);
-  if (base === 'men_Farmer' && !look?.hat) {
-    const h = look ? 'turban' : pickFrom(rng, ['turban', 'turban', 'kufiya', 'fez', 'kufiya']);
-    addHat(head, h, pickFrom(rng, ['#efe6d4', '#e8dcc2', '#2f6c8e', '#8e3b6c', '#b8382b', '#d7a33a', '#f3ede0']));
-  }
+  // Anchors in the older models' terms (see addFeatures): the head's top is 0.27 above the head point
+  // and its face 0.13 in front; the hip point is the pelvis.
+  const k = src.kit;
+  const headAt = anchorOn(head, obj, new THREE.Vector3(k.cx, k.top - 0.27, k.front - 0.13));
+  obj.updateMatrixWorld(true);
+  const hipsAt = hips ? anchorOn(hips, obj, obj.worldToLocal(hips.getWorldPosition(new THREE.Vector3()))) : null;
+  addFeatures(race, role, headAt, hipsAt, skin, hair, rng);
   let heldGrip = null;
   if (look) {
-    let hand = null;
-    // (The right hand bone is named WristR, HandR or Hand.R depending on the model.)
-    obj.traverse(o => { if (o.isBone && /^(WristR|HandR|Hand\.R|Hand_R)$/.test(o.name)) hand = hand || o; });
-    addHat(head, look.hat);
-    heldGrip = addHeld(hand, look.held);
-    if (look.beard && race !== 'dwarf' && race !== 'dragonborn') part(head, cone, FM(hair), [0, 0.05, 0.095], [0.07, -0.13, 0.04], [0.2, 0, 0]);
+    addHat(headAt, look.hat);
+    if (hand && look.held) {
+      const handAt = anchorOn(hand, obj, obj.worldToLocal(hand.getWorldPosition(new THREE.Vector3())));
+      heldGrip = addHeld(handAt, look.held);
+      // Toward the fingers, 8 cm from the wrist.
+      if (heldGrip && mid) {
+        const d = mid.getWorldPosition(new THREE.Vector3()).sub(hand.getWorldPosition(new THREE.Vector3())).normalize().multiplyScalar(0.08);
+        heldGrip.grip.position.copy(d);
+      }
+    }
   }
 
-  const s = height / BODY_HEIGHT;
+  const s = height / k.height;
   obj.scale.set(s * girth, s, s * girth);
   obj.rotation.y = Math.PI;           // the models face +z; our people face -z
   const group = new THREE.Group();
   group.add(obj);
-
   const mixer = new THREE.AnimationMixer(obj);
-  const clip = (n) => src.clips.find(c => c.name === n);
+  const clip = (n) => kitClips.find(c => c.name === n);
   const actions = {};
-  for (const [k, n] of [['idle', role === 'guard' ? 'Idle_Sword' : 'Idle'], ['walk', 'Walk'], ['talk', 'Interact'], ['cheer', 'Wave'], ['sit', 'Idle_Neutral'], ['pick', 'Interact']]) {
-    actions[k] = mixer.clipAction(clip(n) || clip('Idle'));
-  }
+  for (const [key, n] of Object.entries(KIT_CLIPS)) actions[key] = mixer.clipAction(clip(n) || clip('Idle_Loop'));
   actions.idle.play();
-  mixer.setTime(rng() * 3);    // so the crowd doesn't move in step
+  mixer.setTime(rng() * 3);
   if (heldGrip) {
-    // Stand the held thing upright: undo the hand's turn as it is in the standing pose.
     group.updateMatrixWorld(true);
     const hq = heldGrip.hand.getWorldQuaternion(new THREE.Quaternion());
     const gq = group.getWorldQuaternion(new THREE.Quaternion());

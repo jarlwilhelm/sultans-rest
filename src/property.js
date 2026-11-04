@@ -203,7 +203,7 @@ export function buildProperty(scene) {
   const sellSpot = { pos: new THREE.Vector3(), title: 'Your stand', verb: 'Sell to your customers',
     action: () => {
       if (!questState('cabbages').done) return toast('Not yet. Talk to people first; the stand has been shut since Ale died.');
-      trade({ id: 'own', type: 'own', tier: tier() }, { title: `${state.shopName}: your customers buy`, renownFor: (p) => { const r = Math.floor(p / 8); if (r > 0) import('./game/state.js').then(m => m.addRenown(r, 'selling in your shop')); } });
+      trade({ id: 'own', type: 'own', tier: tier() }, { title: `${state.shopName}: your customers buy`, where: 'your stand', renownFor: (p) => { const r = Math.floor(p / 8); if (r > 0) import('./game/state.js').then(m => m.addRenown(r, 'selling in your shop')); } });
     } };
   readables.push(sellSpot);
   const extraCollider = { x0: 0, x1: 0, z0: 0, z1: 0 };

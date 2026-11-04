@@ -1,0 +1,9 @@
+Made by tools/blender/people.py from three kits by @Quaternius (quaternius.com), free Standard versions:
+  - Modular Character Outfits - Fantasy
+  - Universal Base Characters
+  - Universal Animation Library
+
+License: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+https://www.patreon.com/quaternius

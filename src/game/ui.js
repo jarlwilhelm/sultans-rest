@@ -1,7 +1,7 @@
 // On-screen panels: the status bar, conversations, trading, dice rolls and the character sheet.
 // While a panel is open the mouse is free and you don't walk.
 import { state, rank, nextRank, RANKS, SKILLS, skillBonus, mod, packCount, clock, save, level, LEVELS, UNLOCKS } from './state.js';
-import { GOODS, goodsFor, buyPrice, sellPrice, buy, sell } from './economy.js';
+import { GOODS, goodsFor, buyPrice, sellPrice, buy, sell, remember, bestSeen } from './economy.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -114,7 +114,7 @@ export function rollCheck(skill, dc, { advantage = false } = {}) {
 }
 
 // ---------- Trading ----------
-export function trade(market, { title, onDone, renownFor }) {
+export function trade(market, { title, onDone, renownFor, where: place }) {
   const box = el('div', 'trade');
   const head = el('div', 'who', title);
   const info = el('div', 'trade-info');
@@ -138,8 +138,11 @@ export function trade(market, { title, onDone, renownFor }) {
   }
   function btn(label, fn, off) { const b = el('button', 'small', label); b.disabled = !!off; b.onclick = fn; return b; }
 
+  const where = place || title;
+  const ago = (d) => d === state.day ? 'today' : d === state.day - 1 ? 'yesterday' : `${state.day - d} days ago`;
   function render() {
-    info.textContent = `You have ${state.gold} gold · pack ${packCount()}/${rank().pack}`;
+    info.textContent = `You have ${state.gold} gold · pack ${packCount()}/${rank().pack} · prices move as you buy and sell`;
+    for (const g of new Set([...goodsFor(market), ...Object.keys(state.pack)])) remember(market, where, g, buyPrice(market, g), sellPrice(market, g));
     left.replaceChildren(el('h3', '', 'They sell'));
     for (const g of goodsFor(market)) {
       const p = buyPrice(market, g);
@@ -159,6 +162,8 @@ export function trade(market, { title, onDone, renownFor }) {
         btn('Sell 1', () => sold(sell(market, g, 1))),
         btn(`Sell all (${state.pack[g]})`, () => sold(sell(market, g, state.pack[g]))),
       ]);
+      const best = bestSeen(g).sell;
+      if (best && best.where !== where && p != null && best.price > p) r.insertBefore(el('span', 'paid up', `${best.price} at ${best.where}, ${ago(best.day)}`), r.querySelector('.small'));
       const paid = state.paid?.[g];
       if (paid && paid.n > 0 && p != null) {
         const avg = Math.round(paid.cost / paid.n);
@@ -180,27 +185,140 @@ export function trade(market, { title, onDone, renownFor }) {
   openPanel(box, { onClose: onDone });
 }
 
-// ---------- Quest log (J) ----------
-export async function journal() {
+// ---------- Quests (Q, or J) ----------
+// Tabs: what you're doing now (every step of the chapter you're in, with when and where), the chapters
+// you've finished, and what's still to come. (Daily quests get their own tab when they're built.)
+const hourText = (h) => `${((h + 11) % 12) + 1} ${h < 12 || h === 24 ? 'am' : 'pm'}`;
+let questTab = 'now';
+export async function journal(tab = questTab) {
+  questTab = tab;
   const { questLog } = await import('./quests.js');
-  const box = el('div', 'sheet');
-  box.append(el('div', 'who', 'Your story'));
-  for (const q of questLog()) {
-    if (q.locked && !q.done) { box.append(el('p', 'small-note', `${q.title}: opens at level ${q.level}`)); continue; }
-    box.append(el('h3', '', q.title + (q.done ? '  ✓' : '')));
-    for (const st of q.steps) {
-      if (!st.done && !st.current) continue;
-      box.append(el('div', 'stat' + (st.current ? ' prof' : ''), (st.done ? '✓ ' : '▸ ') + st.text));
-      if (st.current && st.revealedHint) box.append(el('p', 'small-note', st.revealedHint));
-      if (st.current && st.hidden) {
-        // A clue you work out yourself; asking around shows the way (and what people told you).
-        const ask = el('button', 'opt'); ask.append(el('span', 'num', '?'), el('span', '', 'Ask around (shows the way on your compass)'));
-        ask.onclick = async () => { const { askAround } = await import('./quests.js'); askAround(); closePanel(); journal(); };
-        box.append(ask);
-      }
-    }
+  const log = questLog();
+  const box = el('div', 'sheet quests');
+  box.append(el('div', 'who', 'Quests'));
+  const tabs = el('div', 'tabs');
+  const { notices, describe } = await import('./daily.js');
+  const daily = notices();
+  for (const [id, label] of [['now', 'Now'], ['daily', `Daily (${daily.filter(q => !q.done).length})`], ['done', `Finished (${log.filter(q => q.done).length})`], ['later', 'Still to come']]) {
+    const b = el('button', 'tab' + (id === tab ? ' on' : ''), label);
+    b.onclick = () => journal(id);
+    tabs.append(b);
   }
-  const close = el('button', 'opt leave'); close.append(el('span', 'num', 'J'), el('span', '', 'Close'));
+  box.append(tabs);
+  if (tab === 'now') {
+    const q = log.find(x => !x.done && !x.locked && x.steps.some(s => s.current));
+    if (!q) {
+      const next = log.find(x => !x.done);
+      box.append(el('p', 'small-note', next ? `Nothing to do in the story right now. "${next.title}" opens at level ${next.level}: work and trade to get there (you're level ${level()}).`
+        : 'You have finished every quest there is, for now.'));
+    } else {
+      box.append(el('h3', '', `${q.title} · level ${q.level}`));
+      const left = q.steps.filter(s => !s.done && !s.current).length;
+      for (const st of q.steps) {
+        if (st.done) { box.append(el('div', 'qstep done', '✓ ' + st.text)); continue; }
+        if (!st.current) continue;
+        const cur = el('div', 'qstep now');
+        cur.append(el('div', 'stat prof', '▸ ' + st.text));
+        if (st.gate) {
+          const bar = el('div', 'bar'); const fill = el('div', 'fill'); fill.style.width = `${(st.gate.have / st.gate.need) * 100}%`; bar.append(fill);
+          cur.append(bar, el('p', 'small-note', `${st.gate.have} / ${st.gate.need} gold${level() < st.gate.level ? ` · needs level ${st.gate.level} (you're ${level()})` : ''}`));
+        }
+        if (st.hours) cur.append(el('p', 'small-note', `When: ${hourText(st.hours[0])} to ${hourText(st.hours[1])}. ${st.open ? 'That\'s now.' : `It's ${clock()} now.`}`));
+        if (st.marked) cur.append(el('p', 'small-note', 'Where: your compass points the way (M for the map).'));
+        if (st.revealedHint) cur.append(el('p', 'small-note', st.revealedHint));
+        if (st.hidden) {
+          // A clue you work out yourself; asking around shows the way (and what people told you).
+          cur.append(el('p', 'small-note', 'No marker for this one: work it out, or ask around.'));
+          const ask = el('button', 'opt'); ask.append(el('span', 'num', '?'), el('span', '', 'Ask around (shows the way on your compass)'));
+          ask.onclick = async () => { const { askAround } = await import('./quests.js'); askAround(); journal('now'); };
+          cur.append(ask);
+        }
+        box.append(cur);
+      }
+      if (left) box.append(el('p', 'small-note', `${left} more step${left > 1 ? 's' : ''} after this.`));
+    }
+    if (state.loan) { const d = state.loan.due - state.day; box.append(el('p', 'small-note', `You owe Rashid ${state.loan.owe} gold, ${d > 0 ? `due in ${d} day${d > 1 ? 's' : ''}` : d === 0 ? 'due today' : 'and it\'s late: his man will collect in the morning'}.`)); }
+    const n = nextRank();
+    if (n) box.append(el('p', 'small-note', `Your shop's next step: the ${n.property} (level ${n.level}, ${n.fee} gold), from ${n.where}.`));
+  } else if (tab === 'daily') {
+    box.append(el('p', 'small-note', 'From the trade notices board on the quay, between the market and your stand. New ones every morning; they\'re gone at midnight.'));
+    for (const q of daily) {
+      const d = describe(q);
+      const row = el('div', 'qstep' + (q.done ? ' done' : ' now'));
+      row.append(el('div', 'stat' + (q.done ? '' : ' prof'), (q.done ? '✓ ' : '▸ ') + d.title));
+      if (!q.done) row.append(el('p', 'small-note', `${d.where} Pays ${q.gold} gold and ${q.xp} XP.`));
+      box.append(row);
+    }
+  } else if (tab === 'done') {
+    const done = log.filter(q => q.done);
+    if (!done.length) box.append(el('p', 'small-note', 'Nothing finished yet.'));
+    for (const q of done) {
+      const d = el('details', 'qdone');
+      d.append(el('summary', '', `✓ ${q.title}`));
+      for (const st of q.steps) d.append(el('div', 'qstep done', st.text));
+      box.append(d);
+    }
+  } else {
+    const later = log.filter(q => !q.done && (q.locked || !q.steps.some(s => s.current)));
+    if (!later.length) box.append(el('p', 'small-note', 'Nothing more in this chapter.'));
+    // Titles stay hidden until a quest opens (they'd give the story away).
+    for (const q of later) box.append(el('div', 'qstep', level() >= q.level ? `${q.title} · after the one you're on` : `A new part of the story · opens at level ${q.level}`));
+  }
+  const close = el('button', 'opt leave'); close.append(el('span', 'num', 'Q'), el('span', '', 'Close'));
+  close.onclick = () => closePanel();
+  box.append(close);
+  openPanel(box);
+}
+
+// ---------- Inventory (I) ----------
+// Everything in your pack as a grid: how many, what it's worth, where it's from and what you paid.
+// Keepsakes (things you earned in the story or the hard way) are listed under it.
+let invPick = null;
+export async function inventory(pickGood = invPick) {
+  const { ITEMS } = await import('./items.js');
+  const box = el('div', 'sheet inventory');
+  box.append(el('div', 'who', 'Inventory'));
+  const used = packCount(), room = rank().pack;
+  box.append(el('p', 'rankline', `${state.gold} gold · pack ${used} / ${room}`));
+  const bar = el('div', 'bar'); const fill = el('div', 'fill'); fill.style.width = `${Math.min(1, used / room) * 100}%`; bar.append(fill);
+  box.append(bar);
+  const goods = Object.entries(state.pack).filter(([, n]) => n > 0).sort((a, b) => GOODS[b[0]].base * b[1] - GOODS[a[0]].base * a[1]);
+  if (!goods.length) box.append(el('p', 'small-note', 'Your pack is empty. Buy goods at the stalls and from ships, or pick cabbages in Ale\'s garden.'));
+  if (pickGood && !state.pack[pickGood]) pickGood = null;
+  invPick = pickGood || goods[0]?.[0] || null;
+  const grid = el('div', 'invgrid');
+  let worth = 0;
+  for (const [g, n] of goods) {
+    const G = GOODS[g];
+    worth += G.base * n;
+    const tile = el('button', 'invtile' + (g === invPick ? ' on' : ''));
+    const sw = el('div', 'invsw'); sw.style.background = G.color;
+    tile.append(sw, el('div', 'invname', G.name), el('div', 'invcount', `× ${n}`));
+    tile.title = `${G.name}: ${n}`;
+    tile.onclick = () => inventory(g);
+    grid.append(tile);
+  }
+  box.append(grid);
+  if (invPick) {
+    const G = GOODS[invPick], n = state.pack[invPick], paid = state.paid?.[invPick];
+    const info = el('div', 'invinfo');
+    info.append(el('h3', '', G.name));
+    info.append(el('div', 'stat', `${n} in your pack · from ${G.from.replace(' (passage escort)', '')} · ${G.kind}`));
+    info.append(el('div', 'stat', `Usual price about ${G.base} gold each · about ${G.base * n} gold for all ${n}`));
+    if (paid && paid.n > 0) info.append(el('div', 'stat', `You paid ${Math.round(paid.cost / paid.n)} gold each, on average`));
+    const best = bestSeen(invPick), ago = (d) => d === state.day ? 'today' : d === state.day - 1 ? 'yesterday' : `${state.day - d} days ago`;
+    if (best.sell) info.append(el('div', 'stat', `Best price you've seen to sell: ${best.sell.price} at ${best.sell.where} (${ago(best.sell.day)})`));
+    if (best.buy) info.append(el('div', 'stat', `Cheapest you've seen to buy: ${best.buy.price} at ${best.buy.where} (${ago(best.buy.day)})`));
+    info.append(el('p', 'small-note', 'Ships pay best for goods from far away; your own stand pays retail. Selling a lot in one place brings its price down there; it recovers in a day or two.'));
+    box.append(info);
+  }
+  if (goods.length) box.append(el('p', 'small-note', `Everything in your pack is worth about ${worth} gold at usual prices.`));
+  const keep = (state.owned || []).filter(id => ITEMS[id] && ['story', 'special', 'redman'].includes(ITEMS[id].how));
+  box.append(el('h3', '', 'Keepsakes'));
+  if (!keep.length) box.append(el('p', 'small-note', 'None yet. Some things can only be earned.'));
+  for (const id of keep) box.append(el('div', 'stat', ITEMS[id].how === 'special' ? `${ITEMS[id].name} · earned: ${ITEMS[id].hint.toLowerCase()}` : id === 'keep:purse' ? `${ITEMS[id].name} · ${state.coins ?? 0} left` : ITEMS[id].name));
+  if (keep.length) box.append(el('p', 'small-note', 'Wear or hold them from Ale\'s wardrobe.'));
+  const close = el('button', 'opt leave'); close.append(el('span', 'num', 'I'), el('span', '', 'Close'));
   close.onclick = () => closePanel();
   box.append(close);
   openPanel(box);
@@ -234,9 +352,7 @@ export function sheet() {
   }
   const pack = el('div', 'col');
   pack.append(el('h3', '', 'Pack'));
-  const items = Object.entries(state.pack);
-  if (!items.length) pack.append(el('div', 'stat', 'Empty'));
-  for (const [g, c] of items) pack.append(el('div', 'stat', `${c} × ${GOODS[g].name}`));
+  pack.append(el('div', 'stat', `${packCount()} / ${rank().pack} · I for your inventory`));
   pack.append(el('h3', '', 'Standing'));
   for (const [k, v] of Object.entries(state.reputation)) pack.append(el('div', 'stat', `${k[0].toUpperCase() + k.slice(1)}: ${v}`));
   grid.append(abil, sk, pack);
@@ -288,11 +404,13 @@ export function chapterEnd() {
     el('p', 'says', 'Xi presses the seal into warm wax. "A ship, and the right to sail her through the warded passage. Do not make me regret it."'),
     el('p', 'says', `Your ship waits at the end of the Grand Pier. You came here with a letter and a key. Now there is a ship, a shop called "${state.shopName}", and a city that knows your name.`),
     el('p', 'says', 'At dusk you walk out to her. Someone is already standing at the end of the pier, an ordinary man in a plain cloak, looking out at the violet lights. When you reach the end of the pier, there is no one there. Only a coin on the boards, with no face stamped on it.'),
-    el('p', 'says', 'Chapter Two: the passage. (Next to build. You can keep playing Sultan\'s Rest as long as you like.)'),
+    el('p', 'says', 'You pocket the coin. The pilot is waiting. The tide is turning.'),
   );
-  const ok = el('button', 'opt leave'); ok.append(el('span', 'num', 'Esc'), el('span', '', 'Back to the harbor'));
+  const sail = el('button', 'opt leave'); sail.append(el('span', 'num', '1'), el('span', '', 'Set sail for Meridia'));
+  sail.onclick = () => { closePanel(true); dispatchEvent(new CustomEvent('lavine:crossing')); };
+  const ok = el('button', 'opt leave'); ok.append(el('span', 'num', 'Esc'), el('span', '', 'Not yet: stay in Sultan\'s Rest a while'));
   ok.onclick = () => closePanel();
-  box.append(ok);
+  box.append(sail, ok);
   openPanel(box);
 }
 

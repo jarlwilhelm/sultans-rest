@@ -2,7 +2,7 @@
 // name, people (race), body and outfit, skin, hair and clothing colour.
 // Saved as state.look; you see yourself in third person (V).
 import * as THREE from 'three';
-import { makeCharacter, BODIES, HAIRS } from './characters.js';
+import { makeCharacter, BODIES, HAIRS, STYLES } from './characters.js';
 import { RACES } from './people.js';
 import { state, save } from './game/state.js';
 
@@ -11,12 +11,13 @@ const HUES = [0, 0.08, 0.16, 0.3, 0.45, 0.58, 0.7, 0.8, 0.9];
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 export function defaultLook() {
-  return { race: 'human', base: 'men_Adventurer', skin: RACES.human.skin[2], hair: HAIRS[1], hue: 0 };
+  return { race: 'human', base: 'Male_Peasant', skin: RACES.human.skin[2], hair: HAIRS[1], hue: 0 };
 }
 
 export function openCreator() {
   return new Promise((resolve) => {
     const look = { ...defaultLook(), ...(state.look || {}) };
+    if (look.style === undefined) look.style = String(look.base).startsWith('Female') ? 'Hair_Long' : 'Hair_SimpleParted';   // what a kit shows when none is chosen
     let name = state.name || '';
     const box = el('div', 'creator');
     const view = el('div', 'cview');
@@ -94,6 +95,7 @@ export function openCreator() {
     }
     skinRow();
     refreshers.push(row('Hair', HAIRS.map(h => [h, '']), v => look.hair === v, v => { look.hair = v; }, v => v));
+    refreshers.push(row('Haircut (peasant and ranger)', STYLES, v => look.style === v, v => { look.style = v; }));
     refreshers.push(row('Clothing colour', HUES.map(h => [h, '']), v => look.hue === v, v => { look.hue = v; }, v => `hsl(${Math.round(v * 360 + 100) % 360}, 45%, 45%)`));
     function refresh() { refreshers.forEach(f => f()); }
     refresh();
