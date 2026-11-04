@@ -57,9 +57,7 @@ export function buildAlesHouse(scene) {
   const { x, z, w, d } = ALE;
   const shell = hollow(scene, { x, z, w, d, h: 3.4, color: '#e2cfa9', doorW: 1.4, doorH: 2.4, backDoor: true, lockLevel: 0, name: "Ale's house", doorColor: '#2e5fa8' });
   scene.userData.shells.ale = shell;
-  placeReadable(scene, signBoard('ALE', 'Cabbages · knock loud', { bg: '#2e5fa8', fg: '#f3ede0' }), {
-    x, y: shell.fy + 2.75, z: z - d / 2 - 0.04, w: 1.6, h: 0.4, title: "Ale's house",
-  });
+  // (No sign: houses don't have signs, the user, 2026-11-04.)
   // The garden behind: low stone walls, rows of cabbages, a loose stone.
   const stone = surface('sandstone_blocks_05', { tile: 2, detail: 0.6 }); stone.color.set('#d4c09a');
   const wall = (x0, x1, z0, z1) => {
@@ -282,6 +280,7 @@ export function furnish(scene) {
     colliders.push({ x0: ad.x + bx - 1, x1: ad.x + bx + 1, z0: ad.z + bz - 0.8, z1: ad.z + bz + 0.8 });
   }
   for (const sx of [-6, 0, 6]) lamp(scene, ad.x + sx, ad.top - 1.5, ad.z, '#ffd38a', 2);
+  for (const [sx, sz] of [[-6 + 1.3, -2], [6 - 1.3, 2]]) prop(scene, 'Stool', ad.x + sx, ad.fy, ad.z + sz, { h: 0.5 });   // their seats
   posts.push(
     { x: ad.x - 6 + 1.3, z: ad.z - 2, ry: Math.PI / 2, role: 'adventurer', sit: true, label: 'Adventurer, sharpening a blade' },
     { x: ad.x + 6 - 1.3, z: ad.z + 2, ry: -Math.PI / 2, role: 'adventurer', sit: true, label: 'Adventurer, counting coins' },

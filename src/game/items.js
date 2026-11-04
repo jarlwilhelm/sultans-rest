@@ -41,6 +41,8 @@ export const ITEMS = {
   'held:dagger': { slot: 'held', value: 'Dagger', name: 'Dagger', how: 'buy', price: 90, level: 5 },
   'held:sword': { slot: 'held', value: 'Sword', name: 'Sword', how: 'buy', price: 200, level: 7 },
   'held:cabbage': { slot: 'held', value: 'Lettuce_Harvested', name: 'A cabbage, proudly', how: 'story', hint: 'Pick your first cabbage' },
+  'held:scepter': { slot: 'held', value: 'scepter', name: 'The King\'s Scepter (10% better prices while you hold it)', how: 'story', hint: 'Bring the Scepter of Light home to the Luminous Shrine' },
+  'held:claycup': { slot: 'held', value: 'claycup', name: 'Ale\'s clay cup', how: 'story', hint: 'An old potter owed Ale more than money' },
   'held:coin': { slot: 'held', value: 'Coin', name: 'The faceless coin', how: 'story', hint: 'A gift from a stranger' },
   'held:tongs': { slot: 'held', value: 'tongs', name: 'Golden tongs', how: 'special', hint: 'Clear three walls in the Glass Kiln' },
   'held:krakentooth': { slot: 'held', value: 'tooth', name: 'Kraken-tooth charm', how: 'special', hint: 'Hold the wards for six waves' },

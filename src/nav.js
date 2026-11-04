@@ -11,6 +11,9 @@ import { inMeridia } from './place.js';
 import { SPOTS, homeSpot, storeSpot } from './meridia/spots.js';
 import { MERIDIA_FOLK } from './meridia/people.js';
 import { C, R_OUT, R_MID, R_IN } from './meridia/layout.js';
+import { SHOP_PINS } from './shoplist.js';
+import { PLAYERS } from './game/players.js';
+import { PEOPLE } from './game/sidequests.js';
 
 const SULTANS_PLACES = [
   { id: 'house', name: "Ale's house", x: -40, z: 63, icon: 'house' },
@@ -25,6 +28,7 @@ const SULTANS_PLACES = [
   { id: 'bones', name: 'Bones table', x: -118, z: 6.5, icon: 'dot' },
   { id: 'palace', name: 'The palace', x: 92, z: 18, icon: 'palace' },
   { id: 'pier', name: 'Grand Pier', x: 0, z: -30, icon: 'dot' },
+  { id: 'shrine', name: 'Luminous Shrine', x: 17.25, z: 176, icon: 'palace' },
   { id: 'gateN', name: 'Desert Gate', x: 0, z: 290, icon: 'gate' },
   { id: 'gateE', name: 'East Gate', x: -183, z: 140, icon: 'gate' },
   { id: 'gateW', name: 'West Gate', x: 183, z: 140, icon: 'gate' },
@@ -52,7 +56,7 @@ export function objective() {
     if (s.gate) return { text: gateText(s), ...P.merchants };
     const when = s.hours && !inHours(s) ? ` (${s.hours[0]}:00 to ${s.hours[1]}:00 only)` : '';
     // A clue you work out yourself: no marker until you "Ask around" in your journal.
-    if (s.hidden && !c.revealed) return { text: s.text + when + '  ·  no marker: J, then "Ask around" if you\'re stuck', x: null, z: null };
+    if (s.hidden && !c.revealed) return { text: s.text + when + '  ·  Stuck? Press Q and choose "Ask around"', x: null, z: null };
     const at = s.x != null ? s : s.npc && (NAMED[s.npc] || NPC_AT[s.npc]);
     if (at) return { text: s.text + when, x: at.x, z: at.z };
   }
@@ -69,7 +73,7 @@ function meridiaObjective() {
   if (c && c.quest.place === 'meridia') {
     const s = c.step;
     const when = s.hours && !inHours(s) ? ` (${s.hours[0]}:00 to ${s.hours[1]}:00 only)` : '';
-    if (s.hidden && !c.revealed) return { text: s.text + when + '  ·  no marker: Q, then "Ask around" if you\'re stuck', x: null, z: null };
+    if (s.hidden && !c.revealed) return { text: s.text + when + '  ·  Stuck? Press Q and choose "Ask around"', x: null, z: null };
     const at = s.x != null ? s : s.npc && (MERIDIA_FOLK[s.npc] || SPOTS[s.npc]);
     if (at) return { text: s.text + when, x: at.x, z: at.z };
     return { text: s.text + when, x: null, z: null };
@@ -200,6 +204,19 @@ export function openMap(player, onClose) {
       g.font = `${p.id === 'house' || p.id === 'stand' ? 'bold ' : ''}15px Cinzel, Georgia, serif`;
       g.fillStyle = '#2b1606';
       g.fillText(p.name, x, y - 9);
+    }
+    // The side streets (2026-11-04): shops, the street players, and anyone with an errand for you right now.
+    const small = (pin, text, col, r = 3.5) => {
+      const x = sx(pin[0]), y = sy(pin[1]);
+      g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      g.font = '12px Cinzel, Georgia, serif'; g.fillStyle = col; g.fillText(text, x, y - 7);
+    };
+    for (const s of Object.values(SHOP_PINS)) if (!s.kind) small(s.pin, s.title, '#7a2a5c', 4);
+    for (const p of Object.values(PLAYERS)) small(p.pin, level() >= p.level ? p.game : `${p.game} (level ${p.level})`, '#2f6b5a');
+    for (const [id, p] of Object.entries(PEOPLE)) {
+      const q = state.side?.[id];
+      if (q?.done || (!q?.step && level() < p.level)) continue;
+      small(p.pin, `${p.title.split(',')[0]} ${q?.step ? '(errand)' : '(needs a hand)'}`, '#b8382b');
     }
     g.font = 'bold 26px Cinzel, Georgia, serif'; g.fillStyle = 'rgba(43,22,6,0.75)';
     g.fillText("SULTAN'S REST", c.width / 2, sy(250));

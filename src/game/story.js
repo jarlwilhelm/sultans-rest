@@ -82,10 +82,10 @@ export function readClue(id) {
 
 // Redman's words (DRAFT; what he says is yours to rewrite).
 export const REDMAN = [
-  'A man in a plain cloak is standing by Ale\'s table, the ledger open in front of him, as if he had always been there. An ordinary face. You will forget it by morning. "Close the door," he says. "Sit, if you like. It was his house before it was yours."',
+  'One candle in the dust. A man in a plain cloak is standing by an upturned crate as if he had always been there, your brother\'s ledger open in his hands. You left it on Ale\'s table this morning. An ordinary face. You will forget it by morning. "Close the door," he says. "Nobody comes here. Your brother liked that about it too."',
   '"Your brother and I were friends. Good friends, for longer than you\'d guess. He carried things for people who cannot be seen. Letters. Names. Sometimes warnings."',
   '"There was no fever. Ale was murdered." He lets that sit. "I don\'t know who did it. Not yet. But I will. I owe him that."',
-  '"The one who went through this house, the gray coat: a hired hand. He works for someone the docks call the Tallyman. Who the Tallyman is, or why he wanted your brother\'s ledger, I don\'t know either."',
+  '"The one who went through your brother\'s house, the gray coat: a hired hand. He works for someone the docks call the Tallyman. Who the Tallyman is, or why he wanted your brother\'s ledger, I don\'t know either."',
   '"Grow, merchant. Get yourself a ship. Then we\'ll talk about what your brother started."',
 ]
 

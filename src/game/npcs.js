@@ -13,6 +13,11 @@ import { meridiaTalk } from '../meridia/talk.js';
 import { checkContracts, contractOptions } from './contracts.js';
 import { investOptions, settleInvestments } from './invest.js';
 import { caseyLuck, spouseMorning, spouseGossip } from './marriage.js';
+import { sideTalk, sideOptions, sideMorning } from './sidequests.js';
+import { keeperTalk } from './shops.js';
+import { playerTalk } from './players.js';
+import { residentLine } from './homes.js';
+import { shrineTalk, useBlessing, scepterOptions } from './shrine.js';
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const leave = { label: 'Leave' };
@@ -30,7 +35,8 @@ export function tableOpen(name) { const t = tally(name); return t.hands < TABLE_
 function tableOpts(name) { const t = tally(name); return { gold: state.gold, handsLeft: TABLE_HANDS - t.hands, winRoom: TABLE_WIN - t.net }; }
 
 // Most a single run of each job can pay (early jobs pay pocket change, later ones much more).
-const PAY_CAP = { 'Market Run': 10, 'Cargo Hold': 10, 'Gull Patrol': 10, 'Glass Kiln': 35, 'Alley Chase': 70, 'Ward Keeper': 150 };
+const PAY_CAP = { 'Market Run': 10, 'Cargo Hold': 10, 'Gull Patrol': 10, 'Glass Kiln': 35, 'Alley Chase': 70, 'Ward Keeper': 150,
+  'Tic-Tac-Toe': 15, 'Arm Wrestling': 18, 'The Shell Game': 28, 'Knife Throwing': 35 };   // the street players (players.js)
 async function runGame(name, opts, who) {
   closePanel(true);
   const gambling = name === 'Bones' || name === 'Twenty-One';
@@ -45,6 +51,7 @@ async function runGame(name, opts, who) {
       const cap = PAY_CAP[name];
       if (cap != null && r.gold > cap) { r.gold = cap; r.summary = (r.summary || '') + ` (The most this job pays is ${cap} gold.)`; }
       if (n >= 3) { r.gold = Math.floor(r.gold / 2); r.summary = (r.summary || '') + ' (Third shift today: half pay.)'; }
+      if (useBlessing()) { r.gold = Math.round(r.gold * 1.25); r.summary = (r.summary || '') + ' (The King\'s light: a quarter more.)'; }   // an offering at the Luminous Shrine (shrine.js)
     }
     return caseyLuck(r, PAY_CAP[name]);                       // married to Casey: sometimes the best pay (marriage.js)
   };
@@ -137,6 +144,7 @@ function ship(npc) {
   if (atLevel(2)) options.push({ label: 'Trade cargo', do: () => { trade(m, { title: `Ship from ${m.land.replace(/^the /, '')}`, where: shipName(m.land), renownFor: profitRenown }); return 'keep'; } });
   else options.push({ label: 'Trade cargo', disabled: true, hint: 'Level 2: captains only deal with traders they know' });
   options.push({ label: 'What do you want for cargo?', do: () => ({ name, text: [buyHint(m)], options: [leave] }) });
+  options.push(...sideOptions('ship', npc));
   options.push(leave);
   return { name, text: [SHIP_TALK[m.land] || 'Fair winds.'], options };
 }
@@ -236,10 +244,10 @@ function steward(npc) {
       },
     });
   }
-  options.push({ label: 'Ask about the King', do: () => ({ name: npc.label, text: ['"King Shou rules from the capital. Sultan\'s Rest is his harbor, and he has trusted it to me."', '[Placeholder line]'], options: [leave] }) });
+  options.push({ label: 'Ask about the King', do: () => ({ name: npc.label, text: ['"King Shou rules from the capital. Sultan\'s Rest is his harbor, and he has trusted it to me."', '"Which is to say: if anything here goes wrong, it is mine to answer for. Nothing goes wrong."'], options: [leave] }) });
   options.push(leave);
   const text = atLevel(8)
-    ? ['"A merchant with a store on my quay. Speak, and be brief; the line behind you is long."', '[Placeholder: Xi\'s voice is yours to write.]']
+    ? ['"A merchant with a store on my quay. Speak, and be brief; the line behind you is long."']
     : ['A guard steps between you and the dais. "The Steward hears merchants of standing. Come back when your name is on a proper store."'];
   return { name: npc.label, text, options };
 }
@@ -251,6 +259,7 @@ function inn(npc) {
     { label: 'Deal me in (Twenty-One)', hint: !atLevel(2) ? 'Level 2' : tableOpen('Twenty-One') ? `Cards at the bar (you have ${state.gold} gold)` : 'Closed to you until tomorrow', disabled: !atLevel(2) || state.gold < 5 || !tableOpen('Twenty-One'), do: () => runGame('Twenty-One', {}) },
     { label: 'Need help with anything?', hint: 'Mini-game: Gull Patrol', do: () => ({ name: npc.label, text: ['"The gulls. Always the gulls. My fish is drying on the racks out back and they come in flocks. Here, take the sling."'], options: [
       { label: 'Guard the fish racks', do: () => runGame('Gull Patrol', {}) }, leave] }) },
+    ...sideOptions('inn', npc),
     leave,
   ] };
 }
@@ -269,12 +278,15 @@ export function newDay() {
   spouseMorning();
   import('../meridia/watch.js').then(w => w.morningWatch());
   const inc = rank().income;
+  // Side errands add a little (Tamsin's pennant, Pia's tea) and a few morning lines (sidequests.js).
+  const side = (state.place || 'sultans_rest') === 'sultans_rest' ? sideMorning(tradeTip()) : { gold: 0, lines: [] };
   if (inc > 0) {
-    const take = Math.round(inc * (0.8 + Math.random() * 0.4));
+    const take = Math.max(0, Math.round(inc * (0.8 + Math.random() * 0.4)) + side.gold);
     state.gold += take; state.earned += take;
     note(`"${state.shopName}" earned ${take} gold`);
     toast(`Day ${state.day}: "${state.shopName}" earned ${take} gold yesterday.`, 4000);
   } else toast(`Day ${state.day}. Prices have changed.`, 3000);
+  side.lines.forEach((l, i) => setTimeout(() => toast(l, 7000), 4200 * (i + 1)));
 }
 
 // ---------- Bones ----------
@@ -425,7 +437,7 @@ function redmanEnd(npc, line) {
 
 export function interact(npc) {
   const by = {
-    stall, ship, guild, steward, inn, bones, crowd, guard: crowd, stranger, named, meridia: meridiaTalk,
+    stall, ship, guild, steward, inn, bones, crowd, guard: crowd, stranger, named, meridia: meridiaTalk, side: sideTalk, shop: keeperTalk, player: (npc) => playerTalk(npc, runGame), home: (npc) => ({ ...crowd(npc), text: [residentLine(npc.id)] }), shrine: shrineTalk,
   }[npc.kind] || crowd;
   const node = by(npc);
   // Whoever the story needs next gets an extra option, just before "Leave".
@@ -434,6 +446,8 @@ export function interact(npc) {
   // Today's trade notices: deliver to whoever posted the order.
   const order = dailyOption(npc);
   if (order && node.options) node.options.splice(Math.max(0, node.options.length - 1), 0, order);
+  // The keeper's quest: Fennick, the Kraken's barkeep, the Dezfulian captain (shrine.js).
+  if (node.options) node.options.splice(Math.max(0, node.options.length - 1), 0, ...scepterOptions(npc, runGame));
   talk(node);
 }
 

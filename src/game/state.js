@@ -75,6 +75,7 @@ const fresh = () => ({
 });
 
 // For trying Chapter Two without playing Chapter One first: open the game at http://localhost:8770/?start=meridia
+// (or ?start=sail: Chapter One finished, still in Sultan's Rest, only the sailing left)
 // (2026-11-04, the user's ask). It makes a save at the start of Chapter Two in the first EMPTY slot (never
 // overwrites one): your latest character's name and looks, Chapter One finished, level 11, a ship, standing in
 // Meridia's harbor. With no empty slot it says so and does nothing.
@@ -94,10 +95,11 @@ const fresh = () => ({
 (function chapterTwoStart() {
   let want = null;
   try { want = new URLSearchParams(location.search).get('start'); } catch { return; }
-  if (want !== 'meridia') return;
+  if (want !== 'meridia' && want !== 'sail') return;
+  const sail = want === 'sail';
   try { history.replaceState(null, '', location.pathname); } catch { /* fine */ }
   const empty = [1, 2, 3].find(n => !get(slotKey(n)));
-  if (!empty) { alert('All three save slots are in use. Delete one (Load Game) to make room for the Chapter Two start.'); return; }
+  if (!empty) { alert(`All three save slots are in use. Delete one (Load Game) to make room for the ${sail ? 'end of Chapter One' : 'Chapter Two start'} save.`); return; }
   const you = load(slot);
   const s = fresh();
   Object.assign(s, {
@@ -108,7 +110,15 @@ const fresh = () => ({
     quests: Object.fromEntries(['cabbages', 'night', 'forty', 'package', 'noface', 'third', 'noface2', 'letters', 'ship'].map(id => [id, { step: 0, done: true }])),
     clues: ['inn', 'ledger', 'transmuter', 'bounty', 'garden', 'pilot', 'redman', 'xi'],
     coins: 3, owned: ['hat:straw', 'hat:captain', 'held:coin', 'keep:purse'],
-    log: ['Day 30: Chapter One finished (a Chapter Two start save, made for testing).'],
+    log: ['Day 30: Chapter One is behind you. Meridia, at last.'],
+  });
+  // ?start=sail (2026-11-04, the user's ask): the end of Chapter One instead. Everything in Sultan's Rest is open
+  // (level 10, gold to spend, every errand untouched) and the only thing left is to sail to Meridia.
+  if (sail) Object.assign(s, {
+    renown: 900, gold: 3000, place: 'sultans_rest', arrived: 'sultans_rest',
+    flags: { intro: true, ship: true, metRedman: true, purse: true, palacePass: true, xiKnows: true, letter: true, letterSealed: true, visitedHouse: true, visitedStand: true },
+    pack: { cabbage: 10, saffron: 6, glass: 5 },
+    log: ['Day 30: Chapter One is behind you. Your ship waits at the end of the Grand Pier.'],
   });
   if (!s.look) s.look = { race: 'human', base: 'Male_Peasant', skin: '#c68642', hair: '#3a2618', hue: 0 };
   put(slotKey(empty), JSON.stringify(s));

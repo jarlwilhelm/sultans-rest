@@ -212,7 +212,9 @@ export async function journal(tab = questTab) {
   const tabs = el('div', 'tabs');
   const { notices, describe } = await import('./daily.js');
   const daily = notices();
-  for (const [id, label] of [['now', 'Now'], ['daily', `Daily (${daily.filter(q => !q.done).length})`], ['done', `Finished (${log.filter(q => q.done).length})`], ['later', 'Still to come']]) {
+  const { errandLog } = await import('./sidequests.js');
+  const errands = errandLog();
+  for (const [id, label] of [['now', 'Now'], ['daily', `Daily (${daily.filter(q => !q.done).length})`], ['errands', `Errands (${errands.started.length})`], ['done', `Finished (${log.filter(q => q.done).length})`], ['later', 'Still to come']]) {
     const b = el('button', 'tab' + (id === tab ? ' on' : ''), label);
     b.onclick = () => journal(id);
     tabs.append(b);
@@ -262,6 +264,18 @@ export async function journal(tab = questTab) {
       if (!q.done) row.append(el('p', 'small-note', `${d.where} Pays ${q.gold} gold and ${q.xp} XP.`));
       box.append(row);
     }
+  } else if (tab === 'errands') {
+    // Side errands for people around Sultan's Rest (sidequests.js).
+    box.append(el('p', 'small-note', 'Small jobs for people in the side streets. They wait for you; take your time.'));
+    for (const e of errands.started) {
+      const row = el('div', 'qstep now');
+      row.append(el('div', 'stat prof', '▸ ' + e.title));
+      if (e.text) row.append(el('p', 'small-note', e.text));
+      box.append(row);
+    }
+    for (const t of errands.done) box.append(el('div', 'qstep done', '✓ ' + t));
+    if (errands.waiting) box.append(el('p', 'small-note', `${errands.waiting} ${errands.waiting === 1 ? 'person' : 'people'} around town could use a hand. They stand at their own front doors, up the side streets.`));
+    if (!errands.started.length && !errands.done.length && !errands.waiting) box.append(el('p', 'small-note', 'Nobody needs you yet. More people will ask as you go up in level.'));
   } else if (tab === 'done') {
     const done = log.filter(q => q.done);
     if (!done.length) box.append(el('p', 'small-note', 'Nothing finished yet.'));

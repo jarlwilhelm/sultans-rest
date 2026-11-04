@@ -13,10 +13,16 @@ import { bones } from './bones.js';
 import { twentyOne } from './twentyone.js';
 import { customs } from './customs.js';
 import { standoff } from './standoff.js';
+import { ticTacToe } from './tictactoe.js';
+import { armWrestle } from './armwrestle.js';
+import { shellGame } from './shellgame.js';
+import { knives } from './knives.js';
 
 const GAMES = { 'Market Run': marketRun, 'Cargo Hold': cargoHold, 'Gull Patrol': gullPatrol, 'Glass Kiln': glassKiln,
   'Alley Chase': alleyChase, 'Ward Keeper': wardKeeper, 'Bones': bones, 'Twenty-One': twentyOne,
-  'The Customs House': customs, 'Standoff': standoff };
+  'The Customs House': customs, 'Standoff': standoff,
+  // Sultan's Rest's street players (game/players.js).
+  'Tic-Tac-Toe': ticTacToe, 'Arm Wrestling': armWrestle, 'The Shell Game': shellGame, 'Knife Throwing': knives };
 export const arcade = { active: false };
 
 export function play(name, opts = {}) {

@@ -42,6 +42,9 @@ export const GOODS = {
   pumpkin: { name: 'Pumpkin', base: 7, from: 'your greenhouse', kind: 'food', color: '#e08a2a' },
   melon:   { name: 'Melon', base: 8, from: 'your greenhouse', kind: 'food', color: '#4a8a3a' },
   // Meridia's own (Chapter Two).
+  bread:   { name: 'Bread', base: 2, from: 'the Sultanate', kind: 'food', color: '#c8924a' },          // the bakery (game/shops.js)
+  balm:    { name: 'Desert Balm', base: 9, from: 'the Sultanate', kind: 'herb', color: '#d8c87a' },     // the apothecary
+  sailcloth: { name: 'Sailcloth', base: 6, from: 'the Coastal Republic of Meridia', kind: 'cloth', color: '#efe8d6' },   // Tamsin's errand (sidequests.js)
   wool:    { name: 'Meridian Wool', base: 8, from: 'the Coastal Republic of Meridia', kind: 'cloth', color: '#e8e2d2' },
   oil:     { name: 'Olive Oil', base: 7, from: 'the Coastal Republic of Meridia', kind: 'food', color: '#9a9a3a' },
   marble:  { name: 'Meridian Marble', base: 18, from: 'the Coastal Republic of Meridia', kind: 'craft', color: '#ecebe4' },
@@ -132,6 +135,8 @@ export function tipOfTheDay() {
 }
 const tipFactor = (m, good) => { const t = tipOfTheDay(); return m.type === 'ship' && m.land === t.land && good === t.good ? 1.25 : 1; };
 
+// The King's Scepter in your hand (the shrine keeper's reward, game/shrine.js): 10% better prices, buying and selling.
+const scepter = (selling) => state.look?.held === 'scepter' ? (selling ? 1.1 : 0.9) : 1;
 function haggleFactor(m, selling) {
   const h = state.haggled[m.id];
   if (!h || h.day !== state.day) return 1;
@@ -152,7 +157,7 @@ export function buyPrice(m, good) {
     if (g.from !== m.land) return null;
     p = g.base * 0.65;
   }
-  return Math.max(1, Math.round(p * drift(good, m.id) * haggleFactor(m, false) * buyDemand(m, good)));
+  return Math.max(1, Math.round(p * drift(good, m.id) * haggleFactor(m, false) * buyDemand(m, good) * scepter(false)));
 }
 
 // What the market pays you per unit, or null if it won't buy it.
@@ -168,7 +173,7 @@ export function sellPrice(m, good) {
     const far = LANDS[g.from] !== 'center' && LANDS[m.land] !== 'center' && LANDS[g.from] !== LANDS[m.land];
     p = g.base * (far ? 1.35 : 1.05);
   }
-  return Math.max(1, Math.floor(p * drift(good, m.id + 'b') * haggleFactor(m, true) * sellDemand(m, good) * tipFactor(m, good)));
+  return Math.max(1, Math.floor(p * drift(good, m.id + 'b') * haggleFactor(m, true) * sellDemand(m, good) * tipFactor(m, good) * scepter(true)));
 }
 
 export function goodsFor(m) {

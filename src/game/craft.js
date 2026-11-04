@@ -20,6 +20,7 @@ const MADE = {
   cliplock: { name: 'Clockwork Lock', base: 66, kind: 'crafted', color: '#8a6a2a' },
   chest:    { name: 'Ebony Strongbox', base: 84, kind: 'crafted', color: '#3a2a20' },
   necklace: { name: 'Black Pearl Necklace', base: 150, kind: 'crafted', color: '#1e2030' },
+  stew:     { name: "Zahra's Cabbage Stew", base: 13, kind: 'crafted', color: '#a8743a' },
 };
 for (const [k, g] of Object.entries(MADE)) GOODS[k] = { ...g, from: 'your workshop' };
 
@@ -32,6 +33,7 @@ export const RECIPES = [
   { out: 'cliplock', n: 1, needs: { gears: 1, lock: 2 }, level: 5, fee: 8 },
   { out: 'chest', n: 1, needs: { ebony: 2, lock: 1 }, level: 6, fee: 10 },
   { out: 'necklace', n: 1, needs: { pearls: 2, silk: 1 }, level: 7, fee: 15 },
+  { out: 'stew', n: 3, needs: { cabbage: 3, carrot: 1, tomato: 1 }, level: 8, fee: 2, flag: 'zahraStew' },   // taught by Zahra (sidequests.js)
 ];
 const ENCHANT = [null, { reagent: 'charm', fee: 10, mark: 'I' }, { reagent: 'ink', fee: 25, mark: 'II' }, { reagent: 'pearls', fee: 50, mark: 'III' }];
 export const CRAFT_LEVEL = 3, ENCHANT_LEVEL = 5;
@@ -65,7 +67,7 @@ const canMake = (r) => level() >= r.level && state.gold >= r.fee && Object.entri
 
 export function craftNode(label) {
   const needs = (r) => Object.entries(r.needs).map(([g, n]) => `${n} ${GOODS[g].name} (${have(g)})`).join(', ');
-  const options = RECIPES.map(r => ({
+  const options = RECIPES.filter(r => !r.flag || state.flags[r.flag]).map(r => ({
     label: `Make ${r.n} ${GOODS[r.out].name}`,
     hint: level() < r.level ? `level ${r.level}` : `${needs(r)} · ${r.fee} gold`,
     disabled: !canMake(r),

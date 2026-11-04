@@ -11,6 +11,7 @@ const blockedAt = (x, z) => colliders.some(c => x > c.x0 - 0.6 && x < c.x1 + 0.6
 import { signBoard, banner, placeReadable, glowTextureCanvas, canvasTexture } from './signs.js';
 import { noticeBoard, wallPoster } from './posters.js';
 import { hollow } from './interiors.js';
+import { shopFor, SHOP_PINS, SHRINE, inShrine } from './shoplist.js';
 import { addFire } from './fire.js';
 
 const rng = makeRng(1234);
@@ -66,6 +67,7 @@ export function palm(x, z, scale = 1) {
   const h = range(rng, 6, 9) * scale;
   let shade = '#4f7d2c';
   for (let i = 0; i < 9; i++) { range(rng, -0.2, 0.2); range(rng, 3.2, 4.4); shade = pick(rng, ['#4f7d2c', '#5c8a30', '#46722a', '#5f8f33']); range(rng, 0.25, 0.6); }
+  if (ghosting) return;
   plants.palms.push({ x, y, z, s: h / 7.5, ry: dir, rz: lean * 0.25, color: shade });
   addCollider(x - 0.35, x + 0.35, z - 0.35, z + 0.35);
 }
@@ -74,16 +76,29 @@ function bush(x, z, s = 1, color) {
   const y = groundHeight(x, z);
   const c = color || pick(rng, ['#5f8a34', '#6b9440', '#527a2e', '#7aa04a']);
   // Flowering bushes in the richer streets near the water (picked by position, not by the random numbers).
+  if (ghosting) return;
   const bloom = wealth(z) > 0.6 && Math.abs(Math.sin(x * 12.9898 + z * 78.233)) % 1 < 0.35;
   plants.bushes.push({ x, y, z, s, ry: (x * 7 + z * 3) % 6.28, color: c, bloom, flower: ['#d0408a', '#e85a9c', '#f07a3a', '#e8e0d0'][Math.floor(Math.abs(x * 3 + z)) % 4] });
 }
 
 function dryShrub(x, z) {
   const y = groundHeight(x, z);
-  plants.dry.push({ x, y, z, s: 0.75, ry: (x * 5 + z) % 6.28, color: pick(rng, ['#8f8150', '#7d6f45', '#9a8a58']) });
+  const color = pick(rng, ['#8f8150', '#7d6f45', '#9a8a58']);
+  if (!ghosting) plants.dry.push({ x, y, z, s: 0.75, ry: (x * 5 + z) % 6.28, color });
 }
 
 // ---------- Houses ----------
+// A house that is really a shop (shoplist.js) is built as a 'ghost' first: every random number is drawn exactly
+// as before, so the rest of the city comes out the same, but nothing is drawn; then a walk-in shell takes its place.
+let ghosting = false;
+function ghostBuilding(x, z, w, d, rich) {
+  const saved = Object.values(B).map(b => [b, b.add]);
+  for (const [b] of saved) b.add = () => {};
+  ghosting = true;
+  try { return building(x, z, w, d, rich); } finally { ghosting = false; for (const [b, a] of saved) b.add = a; HOUSES.pop(); }   // not a house to stand in front of
+}
+// Every ordinary house, with its front door (for side-quest people, homes and condemned houses: sidework.js).
+export const HOUSES = [];
 function building(x, z, w, d, rich) {
   const base = lowest(x, z, w, d);
   const top = Math.max(groundHeight(x - w / 2, z - d / 2), groundHeight(x + w / 2, z + d / 2));
@@ -122,7 +137,7 @@ function building(x, z, w, d, rich) {
     const [px, pz] = at(range(rng, -w / 2 + 0.8, w / 2 - 0.8), -d / 2 - 0.01);
     B.stone.add(px, top + range(rng, 0.2, Math.max(0.3, h - (top - base) - 1.6)), pz, range(rng, 0.7, 1.6), range(rng, 0.45, 1.0), 0.05, pick(rng, ['#b49a74', '#a88d66', '#bfa47c']), ry);
   }
-  addCollider(x - w / 2, x + w / 2, z - d / 2, z + d / 2);
+  if (!ghosting) addCollider(x - w / 2, x + w / 2, z - d / 2, z + d / 2);   // a ghost (a shop or home built hollow instead) must not leave an invisible wall
 
   const roofY = base + h;
   if (tier >= 1) {
@@ -222,6 +237,7 @@ function building(x, z, w, d, rich) {
   } else if (rng() < 0.4) {
     dryShrub(x + range(rng, -w / 2 - 2, w / 2 + 2), z - d / 2 - range(rng, 1, 3));
   }
+  HOUSES.push({ x, z, w, d, ry, tier, doorX, doorZ, doorY, front: at(doorOx, front - 1.4) });
   return { roofY, tier, poster };
 }
 
@@ -706,11 +722,13 @@ export function buildCity(scene) {
   for (let i = 0; i < 3; i++) B.cyl.add(bx - 0.3 + i * 0.3, QUAY_Y + 0.6, bz + (i - 1) * 0.15, 0.06, 0.12, 0.06, '#f3ede0');
   addCollider(bx - 0.7, bx + 0.7, bz - 0.7, bz + 0.7);
   for (const [sx, sz, ry] of [[-1.4, 0, -Math.PI / 2], [1.4, 0, Math.PI / 2], [0, 1.4, Math.PI]]) {
-    scene.userData.posts.push({ x: bx + sx, z: bz + sz, ry, role: 'sailor', sit: true, label: 'Sailor playing Bones', npc: { kind: 'bones' } });
+    B.wood.add(bx + sx, QUAY_Y, bz + sz, 0.55, 0.42, 0.55, '#8a6a44');                // a crate to sit on
+    scene.userData.posts.push({ x: bx + sx, z: bz + sz, ry, role: 'sailor', sit: true, seat: 0.42, label: 'Sailor playing Bones', npc: { kind: 'bones' } });
   }
 
   // Blocks inland: streets between them, the main avenue up the middle stays open.
   const posterSpots = [];
+  const shopLots = {};
   for (let bz = 50; bz < 280; bz += 22) {
     for (let bx = -160; bx <= 160; bx += 24) {
       if (Math.abs(bx) < 14) continue;                                  // main avenue
@@ -727,11 +745,22 @@ export function buildCity(scene) {
         const x = bx - 8.5 + lw * (i + 0.5) + range(rng, -0.4, 0.4);
         const d = range(rng, 9, 15) * (rich > 0.66 ? 1.1 : 1);
         const z = bz + range(rng, -1, 1);
-        const b = building(x, z, w, d, rich);
-        if (b.poster && (rng() < 0.12 && bz < 160 || b.tier === 0 && rng() < 0.15)) posterSpots.push(b.poster);
+        const shop = shopFor(x, z), ghost = (shop && !shopLots[shop]) || inShrine(x, z);
+        const b = ghost ? ghostBuilding(x, z, w, d, rich) : building(x, z, w, d, rich);
+        if (ghost && shop) shopLots[shop] = { x, z, w, d };
+        if (b.poster && (rng() < 0.12 && bz < 160 || b.tier === 0 && rng() < 0.15) && !ghost) posterSpots.push(b.poster);
       }
     }
   }
+  // The shops you can walk into, where their houses would have been (furnished in shops.js).
+  scene.userData.shops = {};
+  for (const [id, l] of Object.entries(shopLots)) {
+    const s = SHOP_PINS[id];
+    const home = s.kind === 'home';
+    const w = Math.min(home ? 8 : 9, Math.max(6, l.w)), d = Math.max(home ? 7.5 : 8, Math.min(l.d, home ? 8.5 : 9.5));     // snug: a shop, not a hall
+    scene.userData.shops[id] = hollow(scene, { x: l.x, z: l.z - (l.d - d) / 2, w, d, h: 3.8, color: s.wall, doorW: home ? 1.2 : 1.4, doorH: home ? 2.3 : 2.5, name: s.title, doorColor: s.door, lockLevel: s.lock || 0 });
+  }
+  scene.userData.shrine = luminousShrine(scene);
   // Posters on walls: Redman most of all.
   posterSpots.forEach(([x, y, z, ry], i) => wallPoster(scene, i % 3 === 2 ? 1 + (i % 8) : 0, x, y, z, ry));
 
@@ -743,4 +772,33 @@ export function buildCity(scene) {
   streetLamps(scene);                // last, once every building is standing (they skip anything solid)
   scene.userData.windowMat = B.win.material;
   scene.userData.darkMat = B.dark.material;
+}
+
+// ---------- The Great Luminous Shrine ----------
+// Where the city honours King Shou (no gods in Lavine: they worship their rulers). A white hall with a gold dome,
+// columns and steps; inside (shrine.js): his golden likeness, fire, benches, an altar, and the keeper.
+function luminousShrine(scene) {
+  const { x0, x1, z0, z1 } = SHRINE, x = (x0 + x1) / 2, z = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0;
+  const inside = hollow(scene, { x, z, w, d, h: 8, color: WHITE, doorW: 2.2, doorH: 3.8, name: 'The Luminous Shrine', doorColor: '#7a5a1a' });
+  const top = inside.top;
+  B.box.add(x, top, z, w + 0.6, 0.5, d + 0.6, '#e6d6b6');                       // cornice
+  B.box.add(x, top - 1.0, z0 - 0.05, w, 0.5, 0.1, GOLD);                         // a gold band over the door
+  B.cyl.add(x, top + 0.5, z + 2, 5.5, 2.4, 5.5, WHITE);                          // the drum and the dome
+  B.dome.add(x, top + 2.9, z + 2, 5.7, 6, 5.7, GOLD);
+  B.cone.add(x, top + 8.6, z + 2, 0.3, 2.8, 0.3, GOLD);
+  // A portico of four columns before the door.
+  const pz = z0 - 2.6, fy = inside.fy;
+  for (const k of [-1.5, -0.5, 0.5, 1.5]) { B.cyl.add(x + k * 3.0, fy - 0.4, pz, 0.45, 6.6, 0.45, '#efe6d4'); addCollider(x + k * 3 - 0.45, x + k * 3 + 0.45, pz - 0.45, pz + 0.45); }
+  B.box.add(x, fy + 6.2, pz + 1.0, 11, 0.7, 3.6, '#e9dcc0');
+  B.box.add(x, fy + 6.9, pz + 1.0, 11, 0.3, 3.6, GOLD);
+  B.box.add(x, fy - 0.45, pz + 1.0, 11.5, 0.45, 4, '#d8c8a8');
+  addFloor(x - 5.75, x + 5.75, pz - 1, pz + 3, fy);
+  // Fire bowls either side of the steps: the shrine is "luminous" day and night.
+  for (const k of [-1, 1]) {
+    B.cyl.add(x + k * 4.6, fy, pz - 1.6, 0.35, 1.1, 0.35, '#d8c8a8');
+    B.cyl.add(x + k * 4.6, fy + 1.1, pz - 1.6, 0.6, 0.3, 0.6, GOLD);
+    addFire(scene, x + k * 4.6, fy + 1.38, pz - 1.6, { size: 1.1, strength: 1.0 });
+    addCollider(x + k * 4.6 - 0.6, x + k * 4.6 + 0.6, pz - 2.2, pz - 1.0);
+  }
+  return inside;
 }

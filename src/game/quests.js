@@ -74,7 +74,7 @@ export const QUESTS = [
     { text: 'Ask the bounty master about a man in a gray coat with blue clay on his boots (Adventurers\' Guild)', npc: 'bounty', talk: true, clue: 'bounty', say: [
       '"Gray coat, blue clay? Dock clay. That\'s one of the alley rats who work the market. Picks locks for hire."',
       '"Your brother came in here once too. Didn\'t want work. Asked how a bounty gets paid when nobody knows the man\'s face." He shrugs. "Catch your rat and we\'ll talk."'] },
-    { text: 'Catch the man in the gray coat in the alleys (Alley Chase, at the bounty master)', x: 64, z: 12, game: ['Alley Chase', r => r.caught > 0] },
+    { text: 'Catch the man in the gray coat in the alleys. The bounty master will point him out', x: 64, z: 12, game: ['Alley Chase', r => r.caught > 0] },
     { text: 'You caught him. He has Ale\'s ledger. Decide what to do with him (the bounty master is waiting)', npc: 'bounty', choices: 'burglar' },
   ] },
   { id: 'third', title: 'Under the Third Row', level: 6, steps: [
@@ -82,15 +82,15 @@ export const QUESTS = [
       hint: 'Re-reading the letter on his shelf, you notice the garden has exactly three rows. The third is the one by the wall.' },
   ] },
   { id: 'noface2', title: 'The Man With No Face', level: 7, steps: [
-    { gate: 3, text: 'Buy the Bigger Store (the town should know your name)' },
-    { text: 'Go home to Ale\'s house after dark. Someone is waiting.', x: -40, z: 63, flag: 'metRedman', xp: 25 },
+    { gate: 3, text: 'Buy the Bigger Store. Let the town learn your name' },
+    { text: 'A note was pushed under Ale\'s door: "The condemned house on the east edge, by the wall. After dark. Come alone."', x: -164, z: 199, flag: 'metRedman', xp: 25 },
   ] },
   { id: 'letters', title: 'Sealed Letters', level: 8, steps: [
-    { gate: 4, text: 'Buy the Store Add-on (become a merchant of note)' },
+    { gate: 4, text: 'Buy the Store Add-on and become a merchant of note' },
     { text: 'Find Nyra, the pilot with silver in her horns, on the Grand Pier', npc: 'nyra', talk: true, say: [
       '"So he found you. Of course he did." Nyra looks out at the violet lights. "Ale paid me to carry letters through the wards. Sealed. No names."',
       '"I kept the last one. The kraken have been bad. Help me keep the wards lit for a night, and it\'s yours."'] },
-    { text: 'Help the pilots keep the wards lit (Ward Keeper: survive two waves)', x: 3.4, z: -24, game: ['Ward Keeper', r => r.waves >= 2] },
+    { text: 'Help the pilots keep the wards lit through two waves of kraken', x: 3.4, z: -24, game: ['Ward Keeper', r => r.waves >= 2] },
     { text: 'Go back to Nyra', npc: 'nyra', talk: true, xp: 20, letter: true, say: [
       '"You\'re steadier than you look." She takes an envelope from inside her coat. The wax seal is the Sultanate\'s. It is addressed, in Ale\'s hand: To the Steward.',
       '"The last one he gave me. He died before I sailed. I never knew who to give it to. Now I do."'] },

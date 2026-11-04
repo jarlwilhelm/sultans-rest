@@ -210,6 +210,8 @@ function addHeld(hand, held) {
   if (held === 'stick') part(grip, new THREE.CylinderGeometry(1, 1, 1, 6), wood, [0, -0.35, 0], [0.018, 1.25, 0.018]);
   else if (held === 'tongs') { for (const s of [-1, 1]) part(grip, box, gold, [s * 0.012, -0.12, 0], [0.012, 0.42, 0.012], [0, 0, s * 0.06]); }
   else if (held === 'compass') { part(grip, new THREE.CylinderGeometry(1, 1, 1, 18), gold, [0, -0.02, 0], [0.045, 0.012, 0.045], [Math.PI / 2, 0, 0]); part(grip, box, FL('#b8180c'), [0, -0.02, 0.008], [0.006, 0.06, 0.004], [0, 0, 0.7]); }
+  else if (held === 'scepter') { part(grip, new THREE.CylinderGeometry(1, 1, 1, 8), gold, [0, -0.18, 0], [0.018, 0.62, 0.018]); part(grip, new THREE.SphereGeometry(1, 12, 10), gold, [0, 0.16, 0], [0.05, 0.05, 0.05]); part(grip, new THREE.SphereGeometry(1, 10, 8), new THREE.MeshStandardMaterial({ color: '#ffd38a', emissive: '#e0a030', emissiveIntensity: 0.8 }), [0, 0.2, 0.03], [0.025, 0.025, 0.025]); }
+  else if (held === 'claycup') { const clay = FL('#b0603a'); part(grip, new THREE.CylinderGeometry(1, 0.85, 1, 10), clay, [0, 0.02, 0.03], [0.045, 0.1, 0.045]); }
   else if (held === 'tooth') { part(grip, lowCone, FL('#efe6d2'), [0, 0.03, 0], [0.025, 0.14, 0.025], [Math.PI, 0, 0]); }
   else prop(grip, held, 0, -0.02, 0, { h: { Torch: 0.55, Book1_Closed: 0.06, Dagger: 0.32, Sword: 0.9, Lettuce_Harvested: 0.22, Coin: 0.035 }[held] || 0.3 });
   return { grip, hand };
@@ -242,8 +244,8 @@ function fitBounds(group) {
 }
 
 // look (optional, from the character creator): { base, hair, hue } chosen instead of at random.
-export function makeCharacter({ race, role, height, girth, skin, look }, rng) {
-  const base = RETIRED[look?.base] || look?.base || pickFrom(rng, ROLE_BASE[role] || ROLE_BASE.local);
+export function makeCharacter({ race, role, height, girth, skin, look, body }, rng) {
+  const base = RETIRED[look?.base] || look?.base || body || pickFrom(rng, ROLE_BASE[role] || ROLE_BASE.local);
   return makeKitCharacter({ race, role, height, girth, skin, look, base: isKit(base) ? base : 'Male_Peasant' }, rng);
 }
 

@@ -37,7 +37,7 @@ export const QUESTS_2 = [
     { text: 'Someone in the outer ring has been asking about you. A hooded figure in a doorway, after dark (8 pm to midnight)', npc: 'dealer', talk: true, hours: [20, 24], give: ['levinite', 1], xp: 10, say: [
       '"You\'re the one who brings Ben his grain." A small vial of violet glass is pressed into your hand. "A gift. From the city. Nights are long here. They don\'t have to be."',
       '(Levinite. You can take it from your inventory: I, then the vial. Or throw it in the sea off the end of the Grand Pier.)'] },
-    { text: 'The vial: take it (I, then the vial), or throw it off the end of the Grand Pier', flagsAny: ['levFirst', 'levRefused'], x: 0, z: -55, xp: 10 },
+    { text: 'The vial: keep it in your pack, or throw it off the end of the Grand Pier', flagsAny: ['levFirst', 'levRefused'], x: 0, z: -55, xp: 10 },
     { text: 'Ben wants a word', npc: 'ben', choices: 'ben2', xp: 30 },
   ] },
   { id: 'm_pass', title: 'The Forged Pass', level: 14, place: 'meridia', steps: [

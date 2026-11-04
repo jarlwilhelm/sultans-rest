@@ -26,6 +26,10 @@ import { buildMeridia } from './meridia/city.js';
 import { buildMeridiaLife } from './meridia/life.js';
 import { buildProperty } from './property.js';
 import { buildAlesHouse, furnish, lockPalace } from './buildings.js';
+import { buildSideErrands } from './sidework.js';
+import { placeShopKeepers, furnishShops } from './shops.js';
+import { buildCellar } from './cellar.js';
+import { furnishShrine } from './shrine.js';
 import { placeGoods } from './goods.js';
 import { compass, openMap } from './nav.js';
 import { loadProps, windowLight } from './interiors.js';
@@ -79,6 +83,7 @@ async function main() {
     buildBoard(scene, readables, colliders, groundHeight, { x: -40, z: 8, ry: 0 });   // the trade notices (daily quests): on the quay between the market and your stand
     buildAlesHouse(scene);
     lockPalace(scene);
+    placeShopKeepers(scene);       // Samira and Doss into their shops (shops.js)
   }
   const updateShips = buildShips(scene, lookables);
   const updateProperty = inMeridia ? () => {} : buildProperty(scene);
@@ -86,6 +91,7 @@ async function main() {
   try { await loadCharacters(); } catch (e) { console.warn('Characters did not load; using simple figures.', e); }
   try { await loadProps(); if (!inMeridia) furnish(scene); placeGoods(scene); fitWaitingHulls(); } catch (e) { console.warn('Furniture did not load.', e); }
   dispatchEvent(new CustomEvent('lavine:property'));
+  if (!inMeridia) { furnishShops(scene); furnishShrine(scene); buildSideErrands(scene); scene.userData.cellar = buildCellar(scene); }   // + the cellar with the Dragon Doors (cellar.js; no way in yet)   // the nine side-quest people and what you find for them (sidework.js)
   const updatePeople = buildPeople(scene, lookables);
   if (!inMeridia) makeStatue(scene, scene.userData.statueBase);
   const updateLife = inMeridia ? buildMeridiaLife(scene, lookables) : () => {};   // Meridia's own people, your ship, your stand and home (meridia/life.js)

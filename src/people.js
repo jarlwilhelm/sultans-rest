@@ -52,11 +52,11 @@ const mesh = (geo, mat, shadow = false) => { const m = new THREE.Mesh(geo, mat);
 
 // role: what they're doing; outfit decides clothes.
 // An animated KayKit person when the models have loaded, else the simple shapes below.
-export function makePerson(race, role) {
+export function makePerson(race, role, body) {     // body: a kit outfit such as 'Female_Peasant' (named people)
   if (!charactersReady()) return makeSimplePerson(race, role);
   const R = RACES[race];
   const skin = role === 'steward' ? '#5a3a22' : pick(rng, R.skin);
-  const g = makeCharacter({ race, role, skin, height: R.h * range(rng, 0.95, 1.05), girth: R.girth * range(rng, 0.95, 1.05) }, rng);
+  const g = makeCharacter({ race, role, skin, height: R.h * range(rng, 0.95, 1.05), girth: R.girth * range(rng, 0.95, 1.05), body }, rng);
   g.userData.label = role === 'steward' ? 'Xi, Steward of Sultan\'s Rest' : `${RACE_NAMES[race]} ${roleName(role, race)}`;
   return g;
 }
@@ -281,15 +281,32 @@ export function buildPeople(scene, lookables) {
   // Everyone with a fixed post: guards at the statue and the gates, the palace's people.
   const spots = [{ x: -4.5, z: 33, ry: 0, role: 'guard', race: 'human' }, { x: 4.5, z: 33, ry: 0, role: 'guard', race: 'human' }, ...posts];
   for (const p of spots) {
-    const g = makePerson(p.race || pickRace(), p.role);
+    const g = makePerson(p.race || pickRace(), p.role, p.body);
     g.position.set(p.x, footHeight(p.x, p.z), p.z);
     g.rotation.y = p.ry;
+    if (p.scale) g.scale.setScalar(p.scale);           // a child (Pia, sidework.js)
     if (p.label) g.userData.label = p.label;
     g.userData.post = p;
     scene.add(g);
     still.push({ g, phase: rng() * 10, sitting: !!p.sit, talker: !p.sit && (p.role === 'merchant' || p.role === 'traveler' || p.role === 'steward'), next: range(rng, 0, 8) });
-    if (p.sit && g.userData.play) g.userData.play('sit', 0);
+    if (p.sit && g.userData.play) { g.userData.play('sit', 0); seat(g, p); }
     lookables.push({ object: g, label: g.userData.label, radius: 0.6, person: true, npc: { ...(p.npc || { kind: p.role === 'guard' ? 'guard' : 'crowd' }), role: p.role, label: g.userData.label } });
+  }
+
+  // Someone sitting: the sitting pose puts the hips 0.2-0.5 m in front of where they stand and at a height that
+  // depends on their size, so they hovered beside their stools (the user's play test). Measure the pose once,
+  // then move them so the hips are over the seat (the post's x, z) and just above its top (p.seat, default 0.5 m).
+  function seat(g, p) {
+    g.userData.mixer?.update(0.5);
+    g.updateMatrixWorld(true);
+    let pelvis = null;
+    g.traverse(b => { if (!pelvis && b.isBone && /pelvis|hips/i.test(b.name)) pelvis = b; });
+    if (!pelvis) return;
+    const w = new THREE.Vector3(); pelvis.getWorldPosition(w);
+    g.position.x -= w.x - p.x; g.position.z -= w.z - p.z;
+    const floor = footHeight(g.position.x, g.position.z);
+    g.userData.sitLift = (p.seat ?? 0.5) + 0.08 - (w.y - g.position.y);
+    g.position.y = floor + g.userData.sitLift;
   }
 
   // Play walking or standing; only people near you are animated (and drawn), which keeps it fast.
@@ -351,7 +368,7 @@ export function buildPeople(scene, lookables) {
       } else {
         // A little breathing and shifting so they don't look frozen.
         s.g.userData.arms[0].rotation.x = Math.sin(t * 0.8 + s.phase) * 0.12;
-        s.g.position.y = footHeight(s.g.position.x, s.g.position.z) + Math.sin(t * 1.6 + s.phase) * 0.008;
+        s.g.position.y = footHeight(s.g.position.x, s.g.position.z) + (s.g.userData.sitLift || 0) + Math.sin(t * 1.6 + s.phase) * 0.008;
       }
     }
   };
