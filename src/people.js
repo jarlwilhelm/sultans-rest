@@ -234,7 +234,10 @@ const SULTANS_ZONES = [
   { name: 'market', box: [-36, 36, 8, 44], n: 26, roles: ['shopper', 'shopper', 'local', 'traveler', 'adventurer', 'merchant', 'sailor'] },
   { name: 'guilds', box: [-165, 80, 8, 14], n: 10, roles: ['adventurer', 'merchant', 'traveler', 'sailor'] },
   { name: 'avenue', box: [-6, 6, 44, 240], n: 10, roles: ['local', 'shopper', 'traveler'] },
-  { name: 'streets', box: [-170, 170, 40, 285], n: 16, roles: ['local', 'local', 'traveler'] },
+  // The back streets (the user, 2026-11-04: the front was busy, the streets behind it empty). Twelve neighbourhoods,
+  // four walkers each, who stay around their own streets; every other one has a guard on his rounds.
+  ...[[-170, -90], [-90, -12], [12, 90], [90, 170]].flatMap(([x0, x1], i) => [[40, 130], [130, 210], [210, 285]].map(([z0, z1], j) => ({
+    name: 'streets', box: [x0, x1, z0, z1], n: 4, roles: (i + j) % 2 ? ['local', 'local', 'shopper', 'traveler', 'guard'] : ['local', 'local', 'shopper', 'traveler', 'dockhand'] }))),
   { name: 'palace garden', box: [100, 170, -12, 38], n: 6, roles: ['local', 'merchant', 'guard'] },
 ];
 const ZONES = inMeridia ? MERIDIA_ZONES : SULTANS_ZONES;
