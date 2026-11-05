@@ -60,6 +60,9 @@ export function objective() {
     const at = s.x != null ? s : s.npc && (NAMED[s.npc] || NPC_AT[s.npc]);
     if (at) return { text: s.text + when, x: at.x, z: at.z };
   }
+  // Meridia is open on this computer only while it's being built (property.js): elsewhere, say so instead.
+  if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && state.flags.ship && !state.flags.crossed && (!c || c.quest.place === 'meridia'))
+    return { text: 'Chapter One is done! Meridia is still being built: keep trading, and come back soon', x: null, z: null };
   if (c?.quest.place === 'meridia' || (state.flags.ship && !state.flags.crossed && !c)) return { text: state.flags.crossed ? 'Your story goes on in Meridia: sail from your ship at the end of the Grand Pier' : 'Set sail for Meridia: your ship waits at the end of the Grand Pier', x: 0, z: -58 };
   if (n && n.where === "the Merchants' Guild" && level() >= n.level && state.gold >= n.fee) return { text: `Buy the ${n.property}`, ...P.merchants };
   if (n && n.id === 'ship' && level() >= n.level && state.gold >= n.fee) return { text: 'Ask Xi for a ship', x: 135, z: -20 };

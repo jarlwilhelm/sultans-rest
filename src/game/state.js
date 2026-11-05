@@ -94,7 +94,7 @@ const fresh = () => ({
 })();
 (function chapterTwoStart() {
   let want = null;
-  try { want = new URLSearchParams(location.search).get('start'); } catch { return; }
+  try { if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return; want = new URLSearchParams(location.search).get('start'); } catch { return; }   // this computer only
   if (want !== 'meridia' && want !== 'sail') return;
   const sail = want === 'sail';
   try { history.replaceState(null, '', location.pathname); } catch { /* fine */ }

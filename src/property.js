@@ -1,4 +1,6 @@
 // Your plot on the quay, just east of the market. It grows as you buy each deed:
+// Meridia (Chapter Two) is open on this computer only, while it's being reworked: see the ship below.
+const meridiaOpen = () => /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 // an empty lot with a sign → a Shack Stand → a Small Store → a Bigger Store → the Add-on
 // (warehouse and rooftop terrace). When Xi grants your ship, it waits at the end of the Grand Pier.
 import * as THREE from 'three';
@@ -303,8 +305,11 @@ export function buildProperty(scene) {
       scene.userData.ownShip = shipObj;
       // Chapter Two: your ship sails to Meridia (the first time is the crossing scene: crossing.js).
       readables.push({ pos: new THREE.Vector3(0, QUAY_Y + 1.6, -60), title: 'Your ship',
-        get verb() { return state.flags.crossed ? 'Sail to Meridia (about two months along the coast, 300 gold for the crew)' : 'Set sail for Meridia'; },
+        get verb() { return !meridiaOpen() ? 'Your ship' : state.flags.crossed ? 'Sail to Meridia (about two months along the coast, 300 gold for the crew)' : 'Set sail for Meridia'; },
         action: async () => {
+          // Meridia is still being built: on the published site the ship stays in port (the user, 2026-11-04: friends
+          // are playing, and shouldn't see a place under construction). It sails as normal on this computer.
+          if (!meridiaOpen()) return toast('The crew is still mending the rigging. Meridia will have to wait a little longer.', 5000);
           if (!state.flags.crossed) return dispatchEvent(new CustomEvent('lavine:crossing'));
           const p = await import('./place.js');
           if (state.gold < p.CREW_PAY) return toast(`The crew wants ${p.CREW_PAY} gold for two months at sea before they cast off.`);
