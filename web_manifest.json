@@ -1,0 +1,24 @@
+{
+  "startup": [
+    {
+      "file": "sultans_rest-0.pck",
+      "bytes": 25058206,
+      "sha256": "c407bae5658a765b8bdfa059b98d6eb54a090519b736aa2a40a86ee21866fe25"
+    },
+    {
+      "file": "sultans_rest-1.pck",
+      "bytes": 10088106,
+      "sha256": "ef7408d3ee03471b8aba6d79cb71029116b123c21434b005cb120766d4e54f77"
+    }
+  ],
+  "regions": {
+    "meridia": [
+      {
+        "file": "meridia-0.pck",
+        "bytes": 9815142,
+        "sha256": "fc0468cc41e52f3b6fdf18aaa0b6a45dcab81700ceb3b0d1e042e6f37e2d4f67"
+      }
+    ]
+  },
+  "music_bitrate": 128000
+}

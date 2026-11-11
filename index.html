@@ -1,196 +1,473 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Trader Quest</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
-} }
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>Merchant Quest</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #242424;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script src="index.js"></script>
+<script>/* The only full-size JS download buffer is the current independent pack (<=24 MiB).
+   It is released after copyToFS, before fetching the next pack. No join/preloader array. */
+window.mqSilent = new URLSearchParams(location.search).has("silent");
+window.mqMetrics = {samples: [], marks: [], longTasks: [], userAgent:navigator.userAgent, runId:Date.now(), startedAt: performance.now()};
+window.mqMark = function(mark) {
+    mark.browserMs = performance.now();
+    window.mqMetrics.marks.push(mark);
+    console.info('MQ_METRIC', JSON.stringify(mark));
+    if(['127.0.0.1','localhost'].includes(location.hostname) && new URLSearchParams(location.search).has('diagnostics')) {
+        fetch('/__metrics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(window.mqMetrics)}).catch(()=>{});
+    }
+};
+try {
+    new PerformanceObserver(list => {
+        for (const e of list.getEntries()) window.mqMetrics.longTasks.push({start:e.startTime,duration:e.duration});
+    }).observe({type:'longtask', buffered:true});
+} catch (_) {}
+window.mqSample = function(engine) {
+    const heap = performance.memory;
+    const sample = {ms:performance.now(), jsHeapBytes:heap ? heap.usedJSHeapSize : null,
+        wasmBytes:engine.rtenv?.mqWasmBytes?.() ?? null};
+    window.mqMetrics.samples.push(sample);
+    if(new URLSearchParams(location.search).has('diagnostics')) {
+        let label=document.getElementById('mq-diagnostics');
+        if(!label){label=document.createElement('div');label.id='mq-diagnostics';label.style='position:fixed;top:0;left:0;z-index:999;color:white;background:#000b;font:12px monospace;pointer-events:none';document.body.append(label);}
+        label.textContent='JS '+Math.round((sample.jsHeapBytes||0)/1048576)+' MiB | WASM '+Math.round((sample.wasmBytes||0)/1048576)+' MiB | '+(window.mqMetrics.marks.at(-1)?.stage||'Downloading');
+    }
+    if(window.mqMetrics.samples.length>3600) window.mqMetrics.samples.shift();
+};
+window.mqStart = async function(engine, packs, options) {
+    window.mqEngine = engine;
+    setInterval(()=>window.mqSample(engine),250);
+    engine.config.update(options);
+    await engine.init('index');
+    let done=0;
+    const total=packs.reduce((n,p)=>n+p.bytes,0);
+    for(const pack of packs) {
+        let bytes = new Uint8Array(pack.bytes);
+        const response=await fetch(pack.file);
+        if(!response.ok) throw new Error('Could not download '+pack.file);
+        const reader=response.body.getReader();
+        let offset=0;
+        for(;;) {
+            const {done:ended,value}=await reader.read();
+            if(ended)break;
+            if(offset+value.length>bytes.length)throw new Error('Pack larger than expected');
+            bytes.set(value,offset);offset+=value.length;
+            options.onProgress?.(done+offset,total);
+        }
+        if(offset!==pack.bytes)throw new Error('Incomplete download: '+pack.file);
+        window.mqSample(engine);
+        engine.copyToFS(pack.file,bytes.buffer);
+        bytes=null; // no references kept in a chunks/preload list
+        done+=pack.bytes;
+        window.mqSample(engine);
+        await new Promise(resolve=>requestAnimationFrame(resolve));
+    }
+    return engine.startGame(options);
+};
+window.mqMusic = {
+    audio:new Audio(), ended:false,
+    play(path) {
+        this.ended=false;
+        this.audio.pause();this.audio.removeAttribute('src');this.audio.load();
+        this.audio.muted=window.mqSilent;
+        this.audio.preload='none';this.audio.src=path;
+        this.audio.play().catch(()=>{this.retry=true;});
+    },
+    volume(value) {this.audio.volume=Math.max(0,Math.min(1,value));},
+    retry:false
+};
+window.mqMusic.audio.addEventListener('ended',()=>{window.mqMusic.ended=true;});
+window.mqMusic.audio.addEventListener('error',()=>{window.mqMusic.ended=true;});
+document.addEventListener('pointerdown',()=>{
+    if(window.mqMusic.retry){window.mqMusic.retry=false;window.mqMusic.audio.play().catch(()=>{});}
+});
+// The harbor ambience on web (waves, crowd murmur, gulls, the palace bell), made with the browser's Web Audio engine
+// like the original browser game (src/sound.js). It runs on the browser's audio thread, so a slow game frame can't
+// make it skip; Godot's single-threaded web audio had to be fed every frame and stuttered. harbor_sound.gd drives it.
+window.mqHarbor = {
+    ctx:null, near:1, muted:false, indoor:false,
+    start() {
+        if(this.ctx)return;
+        const ctx=this.ctx=new AudioContext();
+        const noise=(kind)=>{
+            const len=ctx.sampleRate*4, buf=ctx.createBuffer(2,len,ctx.sampleRate);
+            for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);let last=0;
+                for(let i=0;i<len;i++){const w=Math.random()*2-1;
+                    if(kind==='brown'){last=(last+0.02*w)/1.02;d[i]=last*3.5;}else d[i]=w;}}
+            const src=ctx.createBufferSource();src.buffer=buf;src.loop=true;src.start();return src;
+        };
+        this.master=ctx.createGain();this.master.gain.value=0;
+        this.muffle=ctx.createBiquadFilter();this.muffle.type='lowpass';this.muffle.frequency.value=20000;
+        this.master.connect(this.muffle).connect(ctx.destination);
+        const waves=noise('brown');
+        const wf=ctx.createBiquadFilter();wf.type='lowpass';wf.frequency.value=700;
+        this.waveGain=ctx.createGain();this.waveGain.gain.value=0.17;
+        const swell=ctx.createGain();swell.gain.value=0.6;
+        const lfo=ctx.createOscillator();lfo.frequency.value=0.11;
+        const lfoAmt=ctx.createGain();lfoAmt.gain.value=0.4;
+        lfo.connect(lfoAmt).connect(swell.gain);lfo.start();
+        waves.connect(wf).connect(swell).connect(this.waveGain).connect(this.master);
+        const crowd=noise('white');
+        const cf=ctx.createBiquadFilter();cf.type='bandpass';cf.frequency.value=520;cf.Q.value=1.4;
+        this.crowdGain=ctx.createGain();this.crowdGain.gain.value=0.05;
+        this.chatter=ctx.createGain();this.chatter.gain.value=1;
+        crowd.connect(cf).connect(this.chatter).connect(this.crowdGain).connect(this.master);
+        this.nextGull=ctx.currentTime+2;this.nextBell=ctx.currentTime+15;this.nextChatter=0;
+        document.addEventListener('visibilitychange',()=>{if(document.hidden)ctx.suspend();else ctx.resume();});
+        this.apply();
+    },
+    // Volume: muted (N / Options), indoors quieter and muffled behind the door (half a second, like the desktop game).
+    apply() {
+        if(!this.ctx)return;
+        const t=this.ctx.currentTime, on=!(this.muted||window.mqSilent);
+        this.master.gain.setTargetAtTime(on?0.8*(this.indoor?0.3:1):0,t,0.1);
+        this.muffle.frequency.setTargetAtTime(this.indoor?650:20000,t,0.15);
+    },
+    setMuted(m){this.muted=m;this.apply();},
+    setIndoor(i){this.indoor=i;this.apply();},
+    update(nearWater,busy) {
+        const ctx=this.ctx;if(!ctx)return;
+        if(ctx.state==='suspended'&&!document.hidden)ctx.resume().catch(()=>{});
+        const t=ctx.currentTime;this.near=nearWater;
+        this.waveGain.gain.setTargetAtTime(0.03+0.14*nearWater,t,0.5);
+        this.crowdGain.gain.setTargetAtTime(0.008+0.045*busy,t,0.5);
+        if(t>this.nextChatter){this.chatter.gain.setTargetAtTime(0.5+Math.random()*0.9,t,0.25);this.nextChatter=t+0.3+Math.random()*0.8;}
+        if(t>this.nextGull){this.gull();this.nextGull=t+4+Math.random()*10;}
+        if(t>this.nextBell){this.bell();this.nextBell=t+45+Math.random()*40;}
+    },
+    gull() {
+        const ctx=this.ctx,t=ctx.currentTime;
+        const pan=ctx.createStereoPanner();pan.pan.value=Math.random()*2-1;
+        const out=ctx.createGain();out.gain.value=0.06*this.near;
+        pan.connect(out).connect(this.master);
+        const calls=2+Math.floor(Math.random()*3);
+        for(let i=0;i<calls;i++){
+            const s=t+i*0.28,o=ctx.createOscillator();o.type='sawtooth';
+            const f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=2200;f.Q.value=3;
+            const g=ctx.createGain(),base=1500+Math.random()*400;
+            o.frequency.setValueAtTime(base*1.35,s);o.frequency.exponentialRampToValueAtTime(base,s+0.22);
+            g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(1,s+0.03);g.gain.exponentialRampToValueAtTime(0.001,s+0.25);
+            o.connect(f).connect(g).connect(pan);o.start(s);o.stop(s+0.3);
+        }
+    },
+    bell() {
+        const ctx=this.ctx,t=ctx.currentTime,out=ctx.createGain();out.gain.value=0.07;out.connect(this.master);
+        for(const [ratio,amp] of [[1,1],[2.76,0.5],[5.4,0.25],[0.5,0.4]]){
+            const o=ctx.createOscillator();o.frequency.value=330*ratio;const g=ctx.createGain();
+            g.gain.setValueAtTime(amp,t);g.gain.exponentialRampToValueAtTime(0.001,t+4.5);
+            o.connect(g).connect(out);o.start(t);o.stop(t+4.6);
+        }
+    }
+};
+// Browsers only let sound start after a click or key press.
+for(const kind of ['pointerdown','keydown'])document.addEventListener(kind,()=>{
+    const ctx=window.mqHarbor.ctx;if(ctx&&ctx.state==='suspended'&&!document.hidden)ctx.resume().catch(()=>{});
+});
+// Pong on the startup screen (while the game downloads), like the in-game loading screens (scripts/pong_loading.gd):
+// "Press E to play"; nobody playing = it just loads. If a game is going when loading finishes, it waits for Enter.
+// It takes the place of the Godot logo. The user's idea, 2026-11-11 (docs/todo-next.md 5b).
+(function(){
+    const W=900,H=340,PW=10,PH=74,R=7,SAND='#e9e5dc',GOLD='#e7c35a';
+    let best=0;try{best=+localStorage.getItem('mq-pong-best')||0;}catch(_){}
+    const box=document.createElement('div');
+    // The game's look (as scripts/web_content.gd): a night sea, the gold Cinzel title, the hand-lettered italic.
+    const css=document.createElement('style');
+    css.textContent="@font-face{font-family:'MQ Cinzel';src:url(fonts/Cinzel.ttf);font-weight:400 900}@font-face{font-family:'MQ Fell';src:url(fonts/IMFellEnglish-Italic.ttf);font-style:italic}"+
+        "#mq-pong progress{appearance:none;-webkit-appearance:none;height:6px;border:0;background:rgba(255,255,255,0.08)}"+
+        "#mq-pong progress::-webkit-progress-bar{background:rgba(255,255,255,0.08)}#mq-pong progress::-webkit-progress-value{background:"+GOLD+"}#mq-pong progress::-moz-progress-bar{background:"+GOLD+"}";
+    document.head.append(css);
+    box.id='mq-pong';
+    box.style='position:fixed;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:5;pointer-events:none;font-family:"MQ Fell",Georgia,serif;font-style:italic;color:'+SAND+';background:radial-gradient(ellipse 75% 60% at 50% 42%,#131c29,#05080d)';
+    const title=document.createElement('div');title.textContent='Merchant Quest';
+    title.style='font-family:"MQ Cinzel",Georgia,serif;font-style:normal;font-weight:700;font-size:clamp(30px,5vw,64px);color:'+GOLD+';text-shadow:0 2px 6px rgba(0,0,0,0.6);text-transform:uppercase';
+    const note=document.createElement('div');note.textContent='Loading';note.style='font-size:24px;min-height:30px';
+    const cv=document.createElement('canvas');cv.style='width:min(900px,90vw);aspect-ratio:900/340;pointer-events:auto;margin-bottom:8vh';
+    const dpr=Math.min(2,window.devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;
+    const g=cv.getContext('2d');g.scale(dpr,dpr);
+    box.append(title,note,cv);
+    let playing=false,waiting=false,done=false,you=H/2,cpu=H/2,bx=W/2,by=H/2,vx=0,vy=0,serve=0,ys=0,cs=0,rally=0,mouse=-1,last=performance.now();
+    const keys={};
+    const doServe=(dir)=>{bx=W/2;by=H/2;const a=(Math.random()-0.5)*0.9;vx=dir*Math.cos(a)*340;vy=Math.sin(a)*340;serve=0.7;rally=0;};
+    const bounce=(py,dir)=>{const off=Math.max(-1,Math.min(1,(by-py)/(PH/2)));const sp=Math.min(Math.hypot(vx,vy)*1.06,820);vx=dir*Math.cos(off*0.9)*sp;vy=Math.sin(off*0.9)*sp;};
+    const draw=()=>{
+        g.clearRect(0,0,W,H);g.fillStyle='rgba(0,0,0,0.28)';g.fillRect(0,0,W,H);
+        g.strokeStyle='rgba(233,229,220,0.25)';g.lineWidth=2;g.strokeRect(1,1,W-2,H-2);
+        g.fillStyle='rgba(233,229,220,0.25)';for(let y=8;y+12<=H;y+=22)g.fillRect(W/2-1.5,y,3,12);
+        g.fillStyle=SAND;g.fillRect(24,you-PH/2,PW,PH);g.fillRect(W-24-PW,cpu-PH/2,PW,PH);
+        g.textAlign='center';
+        if(playing){
+            g.fillStyle=GOLD;g.beginPath();g.arc(bx,by,R,0,Math.PI*2);g.fill();
+            g.fillStyle='rgba(233,229,220,0.8)';g.font='700 34px "MQ Cinzel",Georgia,serif';g.fillText(ys,W/4,44);g.fillText(cs,W*3/4,44);
+            g.font='italic 17px "MQ Fell",Georgia,serif';g.fillStyle='rgba(233,229,220,0.7)';g.fillText('Rally '+rally+'  ·  Best '+best,W/2,H-14);
+        }else{
+            g.fillStyle=GOLD;g.font='700 30px "MQ Cinzel",Georgia,serif';g.fillText('Press E to play Pong',W/2,H/2-4);
+            g.font='italic 18px "MQ Fell",Georgia,serif';g.fillStyle='rgba(233,229,220,0.75)';
+            g.fillText('W / S or the arrow keys move your paddle'+(best>0?'  ·  Best rally '+best:''),W/2,H/2+30);
+        }
+    };
+    const finish=()=>{box.remove();window.removeEventListener('keydown',onKey,true);window.removeEventListener('keyup',onUp,true);};
+    const tick=(now)=>{
+        if(!box.isConnected)return;
+        const dt=Math.min((now-last)/1000,0.05);last=now;
+        const notice=document.getElementById('status-notice');
+        if(notice&&notice.style.display==='block'){finish();return;}   // a failure message: get out of its way
+        if(!done&&!document.getElementById('status')){        // the engine is up: loading is finished
+            done=true;
+            if(!playing){finish();return;}
+            waiting=true;note.textContent='Ready — press Enter to go in';const pb=box.querySelector('progress');if(pb)pb.remove();
+            box.style.pointerEvents='auto';
+        }
+        if(playing){
+            const k=(keys.KeyW||keys.ArrowUp?-1:0)+(keys.KeyS||keys.ArrowDown?1:0);
+            if(k){mouse=-1;you+=k*460*dt;}else if(mouse>=0){you+=Math.max(-736*dt,Math.min(736*dt,mouse-you));}
+            you=Math.max(PH/2,Math.min(H-PH/2,you));
+            const aim=vx>0?by:H/2;cpu+=Math.max(-300*dt,Math.min(300*dt,aim-cpu));cpu=Math.max(PH/2,Math.min(H-PH/2,cpu));
+            if(serve>0)serve-=dt;else{
+                // Small steps (at most 4 px each), so a fast ball can't jump clean over a paddle between checks.
+                const n=Math.max(1,Math.ceil(Math.hypot(vx,vy)*dt/4));
+                for(let i=0;i<n;i++){const h=dt/n;
+                bx+=vx*h;by+=vy*h;
+                if(by<R){by=R;vy=Math.abs(vy);}else if(by>H-R){by=H-R;vy=-Math.abs(vy);}
+                if(vx<0&&bx-R<=24+PW&&bx+R>=24&&Math.abs(by-you)<=PH/2+R){bounce(you,1);bx=24+PW+R;rally++;
+                    if(rally>best){best=rally;try{localStorage.setItem('mq-pong-best',best);}catch(_){}}}
+                else if(vx>0&&bx+R>=W-24-PW&&bx-R<=W-24&&Math.abs(by-cpu)<=PH/2+R){bounce(cpu,-1);bx=W-24-PW-R;}
+                }
+                if(bx<-R){cs++;doServe(-1);}else if(bx>W+R){ys++;doServe(1);}
+            }
+        }
+        draw();requestAnimationFrame(tick);
+    };
+    const onKey=(e)=>{
+        if(!box.isConnected)return;
+        if(e.code==='KeyE'&&!playing){playing=true;ys=cs=0;you=cpu=H/2;doServe(Math.random()<0.5?1:-1);}
+        else if((e.code==='Enter'||e.code==='NumpadEnter')&&waiting){finish();return;}
+        keys[e.code]=true;
+        if(waiting||['KeyE','KeyW','KeyS','ArrowUp','ArrowDown'].includes(e.code)){e.preventDefault();e.stopImmediatePropagation();}
+    };
+    const onUp=(e)=>{keys[e.code]=false;};
+    cv.addEventListener('mousemove',(e)=>{if(playing){const r=cv.getBoundingClientRect();mouse=(e.clientY-r.top)*H/r.height;}});
+    const mount=()=>{
+        const splash=document.getElementById('status-splash');if(splash)splash.style.display='none';
+        const status=document.getElementById('status');if(status)status.style.backgroundColor='#05080d';
+        const bar=document.getElementById('status-progress');   // the download bar sits between the words and the court
+        if(bar&&status){bar.style.position='static';bar.style.width='min(900px,90vw)';box.insertBefore(bar,cv);}
+        if(!status)return;   // already started (or a failure page): no Pong
+        document.body.append(box);window.addEventListener('keydown',onKey,true);window.addEventListener('keyup',onUp,true);
+        draw();requestAnimationFrame(tick);
+    };
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();
 </script>
-<style>
-  :root {
-    --ink: #2b1606;
-    --sand: #f1e2c2;
-    --gold: #e7c35a;
-    --teal: #2f9c9a;
-    --shade: rgba(20, 12, 4, 0.62);
-  }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #f0cf9c; font-family: "IM Fell English", Georgia, serif; }
-  #view canvas { display: block; }
-  .hidden { display: none !important; }
-  .panel {
-    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: radial-gradient(ellipse at center, rgba(30, 18, 6, 0.35), rgba(30, 18, 6, 0.75)); color: var(--sand); text-align: center;
-  }
-  #start { cursor: default; }
-  #menu { display: flex; flex-direction: column; gap: 10px; width: min(520px, 90vw); margin: 4px auto 0; }
-  #menu .mbtn { display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(20, 12, 4, 0.55); border: 1px solid rgba(231, 195, 90, 0.55); color: var(--sand); padding: 11px 18px; cursor: pointer; font: inherit; transition: background 0.15s, border-color 0.15s; }
-  #menu .mbtn:hover { background: rgba(60, 36, 10, 0.75); border-color: var(--gold); }
-  #menu .mbtn.primary { border-color: var(--gold); background: rgba(60, 36, 10, 0.7); }
-  #menu .mbtn.danger { border-color: #b8382b; }
-  #menu .mbtn.small { padding: 4px 12px; align-self: flex-end; margin-top: -6px; }
-  #menu .mlabel { font-family: Cinzel, serif; letter-spacing: 0.16em; font-size: 20px; color: var(--gold); }
-  #menu .msub { font-size: 15px; font-style: italic; opacity: 0.85; }
-  #menu .mtitle { font-family: Cinzel, serif; letter-spacing: 0.1em; font-size: 18px; color: var(--gold); margin-bottom: 4px; }
-  #start h1 { font-family: Cinzel, serif; font-size: clamp(36px, 7vw, 84px); letter-spacing: 0.08em; margin: 0; color: var(--gold); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); }
-  #start .sub { font-size: clamp(16px, 2.4vw, 24px); font-style: italic; margin: 6px 0 28px; }
-  #start .go { font-family: Cinzel, serif; letter-spacing: 0.2em; border: 1px solid var(--gold); padding: 12px 26px; color: var(--gold); }
-  #start .keys { margin-top: 26px; font-size: 16px; line-height: 1.8; opacity: 0.9; }
-  kbd { font-family: Cinzel, serif; border: 1px solid rgba(241, 226, 194, 0.6); border-radius: 4px; padding: 1px 6px; font-size: 13px; }
-  #loading { font-family: Cinzel, serif; letter-spacing: 0.15em; }
-  #hud { position: fixed; inset: 0; pointer-events: none; }
-  #cross { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255, 248, 230, 0.85); box-shadow: 0 0 4px rgba(0, 0, 0, 0.6); }
-  #look { position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%); color: #fff6e0; font-size: 18px; font-style: italic; text-shadow: 0 1px 4px #000, 0 0 10px #000; white-space: nowrap; }
-  #prompt { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); background: var(--shade); color: var(--gold); padding: 8px 18px; font-family: Cinzel, serif; letter-spacing: 0.06em; border: 1px solid rgba(231, 195, 90, 0.5); }
-  #place { position: absolute; left: 24px; top: 20px; color: #fff6e0; text-shadow: 0 1px 6px #000; font-family: Cinzel, serif; letter-spacing: 0.12em; font-size: 15px; opacity: 0.85; }
-  #compass { position: absolute; left: 50%; top: 14px; width: 520px; height: 34px; margin-left: -260px; background: linear-gradient(90deg, transparent, var(--shade) 15%, var(--shade) 85%, transparent); border-bottom: 1px solid rgba(231, 195, 90, 0.5); overflow: hidden; }
-  #compass::after { content: ''; position: absolute; left: 50%; top: 0; height: 100%; border-left: 2px solid rgba(231, 195, 90, 0.8); }
-  .cmark, .cpin { position: absolute; top: 8px; transform: translateX(-50%); font-family: Cinzel, serif; color: rgba(241, 226, 194, 0.7); font-size: 12px; }
-  .cmark.big { color: var(--sand); font-size: 16px; top: 6px; font-weight: 700; }
-  .cpin { top: 4px; font-size: 18px; }
-  .cpin.goal { color: var(--gold); } .cpin.mark { color: #e05a4a; } .cpin.home { color: #8fb0e8; font-size: 15px; }
-  .cpin::after { content: attr(data-d); position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 10px; white-space: nowrap; color: var(--sand); font-family: Georgia, serif; }
-  #goal { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); color: var(--gold); font-family: Cinzel, serif; font-size: 13px; letter-spacing: 0.04em; text-shadow: 0 1px 4px #000; white-space: nowrap; }
-  #map { position: fixed; inset: 0; background: rgba(20, 12, 4, 0.82); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5; }
-  #map canvas { max-height: 86vh; max-width: 94vw; box-shadow: 0 12px 50px rgba(0, 0, 0, 0.6); border: 3px solid #7a5a2a; cursor: crosshair; }
-  #creator { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(40, 24, 8, 0.85), rgba(15, 9, 3, 0.95)); display: flex; align-items: center; justify-content: center; z-index: 6; padding: 16px; box-sizing: border-box; }
-  .creator { display: flex; gap: 22px; background: #efe2c2; border: 2px solid #7a5a2a; padding: 20px; max-height: 92vh; overflow: auto; color: var(--ink); box-shadow: 0 12px 50px rgba(0, 0, 0, 0.6); }
-  .cview { background: radial-gradient(ellipse at 50% 70%, #f6ead0, #d8c49a); border: 1px solid #b89a6a; flex: none; }
-  .cform { width: 360px; }
-  .cform h3 { font-family: Cinzel, serif; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #7a5a2a; margin: 12px 0 6px; }
-  .crow { display: flex; flex-wrap: wrap; gap: 6px; }
-  .cbtn { font: inherit; font-size: 14px; padding: 5px 10px; background: #f7eed8; border: 1px solid #b89a6a; cursor: pointer; color: var(--ink); }
-  .cbtn.sw { width: 30px; height: 30px; padding: 0; border-radius: 50%; }
-  .cbtn.on { border: 2px solid #7a1408; box-shadow: 0 0 0 2px #e7c35a; }
-  @media (max-width: 820px) { .creator { flex-direction: column; align-items: center; } .cform { width: 100%; } }
-  #tired { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(5,3,1,0.95) 85%); z-index: 2; }
-  #sneak { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); max-width: 70vw; text-align: center; background: rgba(20, 12, 4, 0.72); color: #f3e2b8; padding: 7px 16px; border-radius: 6px; border: 1px solid rgba(231, 195, 90, 0.45); font-family: 'IM Fell English', Georgia, serif; font-size: 18px; pointer-events: none; z-index: 5; }
-  #sneak.hidden { display: none; }
-  #fade { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #050302; color: var(--sand); display: flex; align-items: center; justify-content: center; font-family: Cinzel, serif; font-size: 24px; letter-spacing: 0.08em; transition: opacity 0.9s; z-index: 9; }
-  #fade.on { opacity: 1; }
-  #crossing { position: fixed; left: 0; right: 0; bottom: 9vh; display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 8; padding: 0 16px; }
-  #crossing .cline { max-width: 760px; text-align: center; font-family: 'IM Fell English', serif; font-size: 23px; line-height: 1.45; color: #fff3df; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85); opacity: 0; transition: opacity 0.45s; margin: 0; }
-  #crossing .cline.on { opacity: 1; }
-  #crossing .cskip { margin-top: 18px; font-family: Cinzel, serif; font-size: 12px; letter-spacing: 0.1em; color: rgba(255, 243, 223, 0.55); }
-  .wlist { display: grid; gap: 4px; }
-  .wrow { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: #f7eed8; border: 1px solid #d8c49a; cursor: pointer; font-size: 15px; }
-  .wrow:hover { border-color: #7a5a2a; } .wrow.on { border-color: #7a1408; background: #fff7e2; }
-  .wrow.locked { opacity: 0.55; cursor: default; font-style: italic; }
-  .wname { flex: 1; } .wtag { font-family: Cinzel, serif; font-size: 12px; color: #7a1408; } .special { color: #b8862c; font-style: normal; }
-  .maphelp { margin-top: 10px; color: var(--sand); font-size: 15px; }
-  #toast { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); background: var(--shade); color: var(--sand); padding: 8px 18px; font-family: Cinzel, serif; letter-spacing: 0.05em; border: 1px solid rgba(231, 195, 90, 0.4); }
-  #mute { position: absolute; right: 24px; top: 20px; color: #fff6e0; text-shadow: 0 1px 4px #000; }
-  #reading { background: rgba(20, 12, 4, 0.78); cursor: default; }
-  #reading img { max-height: 82vh; max-width: 90vw; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
-  #reading img.wide { max-height: 40vh; }
-  #reading p { margin-top: 14px; opacity: 0.8; }
-  #hud.dim #cross, #hud.dim #look, #hud.dim #prompt { visibility: hidden; }
-  #status { position: absolute; right: 24px; top: 70px; display: flex; gap: 14px; font-family: Cinzel, serif; font-size: 14px; letter-spacing: 0.05em; }
-  #status span { background: var(--shade); color: var(--sand); padding: 5px 11px; border: 1px solid rgba(231, 195, 90, 0.35); }
-  #status #st-gold { color: var(--gold); }
-  #mute { top: 110px; }
-  #resume { position: fixed; left: 50%; bottom: 8%; transform: translateX(-50%); background: var(--shade); color: var(--gold); padding: 10px 22px; font-family: Cinzel, serif; letter-spacing: 0.1em; border: 1px solid var(--gold); cursor: pointer; }
-  /* Conversations, trading and the character sheet */
-  #panel { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 0 16px 6vh; background: linear-gradient(to top, rgba(20, 12, 4, 0.55), rgba(20, 12, 4, 0) 60%); }
-  #panel > div { width: min(860px, 100%); max-height: 82vh; overflow: auto; background: #efe2c2; color: var(--ink); border: 2px solid #7a5a2a; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 6px #e3d2a8; padding: 22px 26px; }
-  .who { font-family: Cinzel, serif; font-weight: 700; font-size: 20px; color: #6a3a10; margin-bottom: 8px; }
-  .says { font-size: 19px; line-height: 1.45; margin: 6px 0; }
-  .options { display: grid; gap: 6px; margin-top: 14px; }
-  .opt { display: flex; align-items: center; gap: 12px; text-align: left; font: inherit; font-size: 17px; background: #f7eed8; border: 1px solid #b89a6a; padding: 8px 12px; cursor: pointer; color: var(--ink); }
-  .opt:hover:not(:disabled) { background: #fff7e2; border-color: #7a5a2a; }
-  .opt:disabled { opacity: 0.5; cursor: default; }
-  .opt .num { font-family: Cinzel, serif; font-weight: 700; color: #7a1408; min-width: 1.6em; }
-  .opt .hint { margin-left: auto; font-size: 14px; font-style: italic; color: #6a5a3a; }
-  .opt.leave { margin-top: 12px; width: 100%; }
-  .trade .cols, .sheet .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  .sheet .grid { grid-template-columns: 1fr 1fr 1fr; }
-  @media (max-width: 700px) { .trade .cols, .sheet .grid { grid-template-columns: 1fr; } }
-  .trade h3, .sheet h3 { font-family: Cinzel, serif; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: #7a5a2a; margin: 8px 0 6px; }
-  .trade-info, .rankline { font-size: 16px; margin-bottom: 6px; }
-  .row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px dotted #c8b088; font-size: 16px; }
-  .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.3); flex: none; }
-  .gname { font-weight: bold; }
-  .from { font-size: 13px; font-style: italic; color: #6a5a3a; }
-  .price { margin-left: auto; font-family: Cinzel, serif; color: #6a3a10; white-space: nowrap; }
-  .paid { font-size: 12px; color: #6a5a3a; } .paid.up { color: #2e6b2a; } .paid.down { color: #8e1f24; }
-  .small { font: inherit; font-size: 13px; padding: 3px 8px; background: #f7eed8; border: 1px solid #b89a6a; cursor: pointer; white-space: nowrap; }
-  .small:disabled { opacity: 0.45; cursor: default; }
-  .nope, .empty { font-size: 13px; font-style: italic; color: #8a7a5a; }
-  .trade-msg { min-height: 22px; margin-top: 10px; font-style: italic; color: #2e6b2a; }
-  .stat { font-size: 15px; padding: 2px 0; } .stat.prof { font-weight: bold; }
-  .bar { height: 10px; background: #d8c49a; border: 1px solid #a8885a; margin: 6px 0; } .bar .fill { height: 100%; background: linear-gradient(90deg, #b8862c, #e7c35a); }
-  .small-note { font-size: 14px; font-style: italic; color: #5a4a2a; }
-  .answer { width: 100%; box-sizing: border-box; font: inherit; font-size: 22px; padding: 8px 10px; margin: 8px 0; border: 1px solid #7a5a2a; background: #fff8e6; color: var(--ink); }
-  .chapter .who { font-size: 26px; color: #7a1408; }
-  .tabs { display: flex; gap: 6px; margin: 4px 0 10px; flex-wrap: wrap; }
-  .tab { font: inherit; font-family: Cinzel, serif; font-size: 13px; letter-spacing: 0.06em; padding: 5px 12px; background: #f7eed8; border: 1px solid #b89a6a; cursor: pointer; color: var(--ink); }
-  .tab.on { background: #7a5a2a; color: #fff3cf; border-color: #7a5a2a; }
-  .qstep { font-size: 15px; padding: 3px 0; } .qstep.done { color: #7a6a4a; text-decoration: line-through; text-decoration-color: rgba(122, 106, 74, 0.5); }
-  .qstep.now { background: #f7eed8; border-left: 3px solid #b8862c; padding: 6px 10px; margin: 6px 0; }
-  .qdone summary { font-size: 15px; cursor: pointer; padding: 3px 0; } .qdone .qstep { padding-left: 18px; }
-  .invgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 10px 0; }
-  .invtile { font: inherit; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; min-height: 92px; background: #f7eed8; border: 1px solid #c8b088; cursor: pointer; color: var(--ink); }
-  .invtile:hover { background: #fff7e2; } .invtile.on { border: 2px solid #7a5a2a; background: #fff7e2; }
-  .invtile.empty { background: rgba(247, 238, 216, 0.4); border-style: dashed; cursor: default; }
-  .invsw { width: 34px; height: 34px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.3); box-shadow: inset 0 -6px 10px rgba(0, 0, 0, 0.15); }
-  .invname { font-size: 13px; font-weight: bold; text-align: center; line-height: 1.15; } .invcount { font-family: Cinzel, serif; font-size: 13px; color: #6a3a10; }
-  .invinfo { background: #f7eed8; border: 1px solid #d8c49a; padding: 6px 12px 8px; margin-top: 4px; }
-  .journal { font-size: 14px; max-height: 140px; overflow: auto; background: #f7eed8; padding: 6px 10px; border: 1px solid #d8c49a; }
-  /* Dice */
-  #dicebox { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 12, 4, 0.55); z-index: 5; }
-  .dice { background: #efe2c2; border: 2px solid #7a5a2a; padding: 22px 40px; text-align: center; color: var(--ink); min-width: 280px; }
-  .dice .dc { font-family: Cinzel, serif; color: #6a5a3a; }
-  .die { font-family: Cinzel, serif; font-size: 64px; font-weight: 700; width: 120px; height: 120px; line-height: 120px; margin: 14px auto; background: #2b1606; color: var(--gold); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
-  .die.crit { color: #7fe0ff; } .die.fumble { color: #e05a4a; }
-  .roll-line { font-size: 17px; min-height: 24px; }
-  .verdict { font-family: Cinzel, serif; font-size: 24px; font-weight: 700; min-height: 32px; margin-top: 6px; }
-  .verdict.good { color: #2e6b2a; } .verdict.bad { color: #8e1f24; }
-  /* Mini-games */
-  #arcade { position: fixed; inset: 0; background: #0d0905; display: flex; align-items: center; justify-content: center; z-index: 6; }
-  #arcade canvas { width: min(100vw, 150vh); aspect-ratio: 3 / 2; image-rendering: auto; box-shadow: 0 0 60px rgba(231, 195, 90, 0.15); }
-</style>
-</head>
-<body>
-<div id="view"></div>
-<div id="loading" class="panel">Raising the city…</div>
-<div id="start" class="panel hidden">
-  <h1>TRADER QUEST</h1>
-  <div class="sub">Chapter One · Sultan's Rest, harbor of the Sultanate</div>
-  <div class="sub" style="font-size:18px;margin-top:-18px">Arrive with a few coins. Leave with the Steward's Charter.</div>
-  <div id="menu"></div>
-  <div class="keys">
-    <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> walk &nbsp;·&nbsp; mouse to look &nbsp;·&nbsp; <kbd>Shift</kbd> run &nbsp;·&nbsp; <kbd>Space</kbd> jump<br>
-    <kbd>E</kbd> talk to people, read signs &nbsp;·&nbsp; <kbd>C</kbd> character &nbsp;·&nbsp; <kbd>Q</kbd> quests &nbsp;·&nbsp; <kbd>I</kbd> inventory &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>9</kbd> pick an answer<br>
-    <kbd>V</kbd> see yourself &nbsp;·&nbsp; <kbd>M</kbd> map &nbsp;·&nbsp; <kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>N</kbd> sound &nbsp;·&nbsp; <kbd>G</kbd> graphics &nbsp;·&nbsp; <kbd>Esc</kbd> free the mouse
-  </div>
-</div>
-<div id="hud" class="hidden">
-  <div id="place">SULTAN'S REST · THE SULTANATE</div>
-  <div id="mute"></div>
-  <div id="cross"></div>
-  <div id="look"></div>
-  <div id="prompt" class="hidden"></div>
-  <div id="toast" class="hidden"></div>
-  <div id="goal"></div>
-  <div id="status"><span id="st-rank"></span><span id="st-gold"></span><span id="st-pack"></span><span id="st-room" class="hidden"></span><span id="st-time"></span></div>
-</div>
-<div id="panel" class="hidden"></div>
-<div id="dicebox" class="hidden"></div>
-<div id="arcade" class="hidden"></div>
-<div id="map" class="hidden"></div>
-<div id="creator" class="hidden"></div>
-<div id="tired"></div>
-<div id="fade"></div>
-<div id="resume" class="hidden">Click to continue &nbsp;·&nbsp; <kbd>M</kbd> map &nbsp;·&nbsp; <kbd>C</kbd> character</div>
-<div id="reading" class="panel hidden">
-  <img id="reading-img" alt="">
-  <p><kbd>E</kbd> or <kbd>Esc</kbd> to put it down</p>
-</div>
-<script type="module" src="src/main.js"></script>
-</body>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1993589,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		window.mqStart(engine, [{"file": "sultans_rest-0.pck", "bytes": 25058206, "sha256": "c407bae5658a765b8bdfa059b98d6eb54a090519b736aa2a40a86ee21866fe25"}, {"file": "sultans_rest-1.pck", "bytes": 10088106, "sha256": "ef7408d3ee03471b8aba6d79cb71029116b123c21434b005cb120766d4e54f77"}], {
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
 </html>
+
